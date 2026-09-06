@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import env from './config/env';
 import errorHandler from './middleware/error.middleware';
+import authRoutes from './routes/auth.routes';
 
 const app = express();
 
@@ -15,6 +16,8 @@ app.use(
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
+
+app.use('/api/auth', authRoutes);
 
 // Centralized error handling
 app.use(errorHandler);
