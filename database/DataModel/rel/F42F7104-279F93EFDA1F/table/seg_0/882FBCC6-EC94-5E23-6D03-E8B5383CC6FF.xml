@@ -1,0 +1,136 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Table class="oracle.dbtools.crest.model.design.relational.Table" directorySegmentName="seg_0" id="882FBCC6-EC94-5E23-6D03-E8B5383CC6FF" name="AUDIT_LOG">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>D5D2FB14-E5FF-A90D-38EB-E36DBB1DC36A</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<allowColumnReorder>false</allowColumnReorder>
+<existDependencyGenerateInDDl>true</existDependencyGenerateInDDl>
+<parsed>true</parsed>
+<columns itemClass="oracle.dbtools.crest.model.design.relational.Column">
+<Column name="id" id="DD55B96D-FE54-1EE1-D92A-D71FB5A89D1C">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>85AD0D24-C864-735F-9030-56C6B556F917</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="action" id="FE7B5919-8788-AC97-CA34-174608FE6386">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>0670501F-144F-ED1A-1179-2AC0DB66D85C</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>200</dataTypeSize>
+<ownDataTypeParameters>200,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="entity_type" id="AE0F682A-141B-CD8D-A271-FC5C44243EC0">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>5B7EA583-9203-26DB-A775-3167095EA98F</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>150</dataTypeSize>
+<ownDataTypeParameters>150,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="entity_id" id="80285EC3-B73A-419D-15E7-52DEB4CCF83C">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>65F03339-AD0E-39D0-1376-1D65B67A61B7</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="details" id="2CFE3107-516E-F8AE-57FB-B2A6BD7E2AE9">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>EA01388B-866C-1B0D-4E1A-98BB7525D4AF</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>47823B89-BECE-2D4A-B641-EE3BE6149078</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="ip_address" id="CDF70437-B1D8-14EB-81F4-53CB4418FE25">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>7F3DF08E-57CF-6D89-20A7-C4AA8197ED6A</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="created_at" id="9969D80E-7066-2280-EF99-C86DFAC0DADA">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>C7732B43-A122-EEDC-5D18-DA2B3380ABFC</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT008</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="USER_id" id="01D7161A-72E0-BBA8-2189-3FF928C430E9">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>BDCDE460-3006-9F2D-0EAC-54956A7A71A5</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<nullsAllowed>true</nullsAllowed>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="EC006C20-AF55-2E4B-87C9-1DB5693F2761" referredColumn="02B71BFE-724E-A5EE-5314-952961549CFB"/>
+</associations>
+</Column>
+</columns>
+<indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">
+<ind_PK_UK id="7606273B-5E1F-F368-B755-9B5D3C34A3DB" name="AUDIT_LOG_PK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>729A63D8-2B60-08C7-19FF-4D44F06B0909</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<pk>true</pk>
+<indexState>Primary Constraint</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="DD55B96D-FE54-1EE1-D92A-D71FB5A89D1C"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="D9D9F637-80F3-29B1-FAC8-AE19663670C3" name="AUDIT_LOG_USER_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>8AD2FD4A-5430-5965-34AE-0ED72DB1E94B</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="01D7161A-72E0-BBA8-2189-3FF928C430E9"/>
+</indexColumnUsage>
+</ind_PK_UK>
+</indexes>
+</Table>

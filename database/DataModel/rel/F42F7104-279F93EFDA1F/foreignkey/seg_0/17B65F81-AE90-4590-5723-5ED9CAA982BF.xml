@@ -1,0 +1,17 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<FKIndexAssociation class="oracle.dbtools.crest.model.design.relational.FKIndexAssociation" directorySegmentName="seg_0" id="17B65F81-AE90-4590-5723-5ED9CAA982BF" containerWithKeyObject="4CA43A14-47DB-9CE8-9C82-2BA5EF172D82" localFKIndex="85AEEF69-433B-82DF-E053-AE6CCE02A98D" name="CREDENTIAL_CORRECTION_REQUEST_CERTIFICATE_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>5F137EC4-20B9-DA52-3657-00E2D5B57AB1</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<referredTableLongName>CERTIFICATE</referredTableLongName>
+<deleteRule>NO ACTION</deleteRule>
+<referredTableID>F0795492-1B9A-7F84-42FE-71833E723143</referredTableID>
+<keyObject>82E29DE7-79E2-3F9E-EC72-D18C05427FF7</keyObject>
+<referredKeyID>82E29DE7-79E2-3F9E-EC72-D18C05427FF7</referredKeyID>
+<mandatory>true</mandatory>
+<refColNames>id</refColNames>
+<transferable>true</transferable>
+<rely>false</rely>
+<columnDependencyConstraintGenerateInDDL>true</columnDependencyConstraintGenerateInDDL>
+</FKIndexAssociation>

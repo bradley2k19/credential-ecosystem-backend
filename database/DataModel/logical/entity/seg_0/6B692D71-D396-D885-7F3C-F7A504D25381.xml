@@ -1,0 +1,126 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Entity class="oracle.dbtools.crest.model.design.logical.Entity" directorySegmentName="seg_0" id="6B692D71-D396-D885-7F3C-F7A504D25381" name="CREDENTIAL_CORRECTION_REQUEST">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:06:57 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<adequatelyNormalized>NO</adequatelyNormalized>
+<expectedVolumes>0</expectedVolumes>
+<fwdEngineeringStrategyName>Single Table</fwdEngineeringStrategyName>
+<growthPercent>0</growthPercent>
+<growthType>Year</growthType>
+<maxVolumes>9999999</maxVolumes>
+<minVolumes>0</minVolumes>
+<normalForm>Third</normalForm>
+<attributes itemClass="oracle.dbtools.crest.model.design.logical.Attribute">
+<Attribute name="id" id="698E5846-D9D0-3EF7-BF63-6DF9B2A76276">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:07:30 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="request_details" id="F973DD77-305A-68EF-7DF2-D3EC7F107FE0">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:07:44 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>200</dataTypeSize>
+<ownDataTypeParameters>200,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="status" id="E312A95B-FA9A-EC67-8052-27572CBCC033">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:08:23 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="requested_at" id="3A81C830-0D19-1418-9126-B6503078A246">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:09:45 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT008</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="resolved_at" id="88A65650-E2C5-7BE8-8027-BA3024354F8A">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:10:16 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT008</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="id1" id="A6B0A238-D1FD-CAF8-B2A2-67A43CD45433">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 08:40:15 UTC</createdTime>
+<generatorID>FFE222AE-1492-718C-3144-9AB33D332438</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<referedAttribute>541DC02C-2886-3D69-F1F2-95062DC1F103</referedAttribute>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+</Attribute>
+<Attribute name="id2" id="402D7619-8CA7-E2DF-6070-380347A7C6D5">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 08:51:59 UTC</createdTime>
+<generatorID>5F137EC4-20B9-DA52-3657-00E2D5B57AB1</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<referedAttribute>25661C9E-E5FD-896F-392E-5AD16CF95216</referedAttribute>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>10</dataTypeSize>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+</Attribute>
+</attributes>
+<identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
+<identifier id="40DAC215-D0FE-2F44-642F-C4289CFF031A" name="CREDENTIAL_CORRECTION_REQUEST PK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 06:07:43 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<pk>true</pk>
+<usedAttributes>
+<attributeRef>698E5846-D9D0-3EF7-BF63-6DF9B2A76276</attributeRef>
+</usedAttributes>
+</identifier>
+</identifiers>
+</Entity>

@@ -1,0 +1,260 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<Table class="oracle.dbtools.crest.model.design.relational.Table" directorySegmentName="seg_0" id="B41051E2-0AAB-18DA-AA97-955851E217C8" name="USER">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>DB2E15D0-E796-47D4-03AE-AD49DB0D5A1E</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<allowColumnReorder>false</allowColumnReorder>
+<existDependencyGenerateInDDl>true</existDependencyGenerateInDDl>
+<parsed>true</parsed>
+<columns itemClass="oracle.dbtools.crest.model.design.relational.Column">
+<Column name="id" id="02B71BFE-724E-A5EE-5314-952961549CFB">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>E53CF656-4518-D360-49F7-0CE3E11C1F20</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="email" id="033388E2-B2E5-015B-BC02-4088C0DE7415">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>19E5930F-EED6-5CB5-E0D8-1B19D64574D7</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>150</dataTypeSize>
+<ownDataTypeParameters>150,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="password_hash" id="5E4DB9DE-1C1F-E8DA-28B4-54F6E0F52851">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>373C63BE-6DA3-6CD4-FB13-9E2C8BE298D0</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>150</dataTypeSize>
+<ownDataTypeParameters>150,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="role" id="D9A29574-2624-E23D-5960-ECBB531D244C">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>EFC972C9-5395-6BFE-CCEE-8EB61BAE1E33</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="is_active" id="EFEE39B3-C9FC-EC66-0295-A0B6AD9294DF">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>4E5FC936-773E-0506-10D2-07BD299B60BF</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT006</logicalDatatype>
+<dataTypeSize>1</dataTypeSize>
+<ownDataTypeParameters>1,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="created_at" id="B5316957-24D9-2EBE-7496-3711E1606503">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>4C05F5AE-10CF-0288-1786-50EA46A146B6</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT008</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="updated_at" id="150FC2D6-DEC5-AEB0-70C7-746FA9FD0F03">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>2090512B-B8E6-B4C6-F457-9993DA062109</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT008</logicalDatatype>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
+</Column>
+<Column name="INSTITUTION_id" id="4AD01FA8-7199-D177-4565-A77531C4149C">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>B9C7C05A-DAD4-2212-5273-D5F3200F4955</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="5E713F72-E56B-B044-F111-6671587E993E" referredColumn="16DE375F-8202-D039-539D-8310C7438680"/>
+</associations>
+</Column>
+<Column name="STUDENT_id" id="0A497059-6F2C-F245-85BC-4C3AFB983D41">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>86456830-62E2-C0FE-4668-1D946C8621F9</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="43F278EF-5EFF-FC86-248A-3BC2630934B0" referredColumn="6E5F03CD-2B2D-FC5B-BBB3-DEB21E3AF7AB"/>
+</associations>
+</Column>
+<Column name="EMPLOYER_id" id="02BE3EB2-23B3-1760-035C-439EBC78D317">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>26C1B6B4-12AB-7FAE-D260-359AA9A52ED6</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="1A191C61-357A-FBE6-D2ED-399BCE328D05" referredColumn="CD72C875-8A2D-5F85-5E99-7C9B9AD586F1"/>
+</associations>
+</Column>
+<Column name="INSTITUTION_STAFF_id" id="A0D08ACE-9D1B-6042-D4F1-6F02B639F413">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>4A514E5D-912F-E45C-4DA3-EC05F047154A</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT019</logicalDatatype>
+<dataTypePrecision>10</dataTypePrecision>
+<ownDataTypeParameters>,,</ownDataTypeParameters>
+<previousColumn>false</previousColumn>
+<autoIncrementCycle>false</autoIncrementCycle>
+<associations>
+<colAssociation fkAssociation="40A200B3-2F85-6463-2F39-D385660669CE" referredColumn="074F7381-71AD-FC82-C286-C2357233ABC0"/>
+</associations>
+</Column>
+</columns>
+<indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">
+<ind_PK_UK id="2CADDA0E-96CD-E039-343B-9E37475E3EE1" name="USER_PK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>B6C64A6E-C44E-CB3D-E1B5-23D6EF8B2CC9</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<pk>true</pk>
+<indexState>Primary Constraint</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="02B71BFE-724E-A5EE-5314-952961549CFB"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="1D3245F1-F330-2D64-B4E5-8C176600F7A0" name="USER__IDX">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>59BCC7FE-42BB-A50B-748A-68CAAE7E487C</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="4AD01FA8-7199-D177-4565-A77531C4149C"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="1041D33B-C33E-E146-3190-D2C161DF3F3C" name="USER__IDXv1">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>09556282-496E-D92A-3C11-4E968358B21D</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="0A497059-6F2C-F245-85BC-4C3AFB983D41"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="7B4AAED9-1063-9D0F-E36A-E40F4063F8CA" name="USER__IDXv2">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>04515DCB-AEE5-E89C-C112-5C0E882C6671</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="02BE3EB2-23B3-1760-035C-439EBC78D317"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="1E3E8DE0-7E1D-2DDA-0020-20BA579C742E" name="USER__IDXv3">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Unique Plain Index</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<relationGeneratorID>96E0E405-C853-C27E-1F7E-A547142D7E60</relationGeneratorID>
+<indexColumnUsage>
+<colUsage columnID="A0D08ACE-9D1B-6042-D4F1-6F02B639F413"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="3ACF6983-29DA-4F21-6EE0-EC51CE0F40A9" name="USER_INSTITUTION_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>59BCC7FE-42BB-A50B-748A-68CAAE7E487C</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="4AD01FA8-7199-D177-4565-A77531C4149C"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="F53567DB-C095-AFE4-F426-2146F8BAAF8E" name="USER_STUDENT_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>09556282-496E-D92A-3C11-4E968358B21D</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="0A497059-6F2C-F245-85BC-4C3AFB983D41"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="CDD44904-9578-3812-260F-D6D1588DDE5E" name="USER_EMPLOYER_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>04515DCB-AEE5-E89C-C112-5C0E882C6671</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="02BE3EB2-23B3-1760-035C-439EBC78D317"/>
+</indexColumnUsage>
+</ind_PK_UK>
+<ind_PK_UK id="401EE60C-AEF4-3C50-9A9E-17D109F056FD" name="USER_INSTITUTION_STAFF_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>96E0E405-C853-C27E-1F7E-A547142D7E60</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<indexState>Foreign Key</indexState>
+<isSurrogateKey>false</isSurrogateKey>
+<indexColumnUsage>
+<colUsage columnID="A0D08ACE-9D1B-6042-D4F1-6F02B639F413"/>
+</indexColumnUsage>
+</ind_PK_UK>
+</indexes>
+</Table>

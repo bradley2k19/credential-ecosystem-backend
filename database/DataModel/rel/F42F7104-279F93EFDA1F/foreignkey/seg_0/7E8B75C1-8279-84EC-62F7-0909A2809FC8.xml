@@ -1,0 +1,17 @@
+<?xml version = '1.0' encoding = 'UTF-8'?>
+<FKIndexAssociation class="oracle.dbtools.crest.model.design.relational.FKIndexAssociation" directorySegmentName="seg_0" id="7E8B75C1-8279-84EC-62F7-0909A2809FC8" containerWithKeyObject="C8B4A97C-C7F4-0F8E-8281-759548D6DC86" localFKIndex="ED0418D2-1C04-C179-9FE2-5F9C8CAF9E3C" name="BLOCKCHAIN_TRANSACTION_CERTIFICATE_FK">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-08 10:01:42 UTC</createdTime>
+<generatorID>735DDE52-E282-0B76-668D-26C4A354C0EF</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<referredTableLongName>CERTIFICATE</referredTableLongName>
+<deleteRule>NO ACTION</deleteRule>
+<referredTableID>F0795492-1B9A-7F84-42FE-71833E723143</referredTableID>
+<keyObject>82E29DE7-79E2-3F9E-EC72-D18C05427FF7</keyObject>
+<referredKeyID>82E29DE7-79E2-3F9E-EC72-D18C05427FF7</referredKeyID>
+<mandatory>true</mandatory>
+<refColNames>id</refColNames>
+<transferable>true</transferable>
+<rely>false</rely>
+<columnDependencyConstraintGenerateInDDL>true</columnDependencyConstraintGenerateInDDL>
+</FKIndexAssociation>
