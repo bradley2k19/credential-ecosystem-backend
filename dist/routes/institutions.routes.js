@@ -7,6 +7,7 @@ const express_1 = require("express");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const institution_students_controller_1 = __importDefault(require("../controllers/institution-students.controller"));
 const institution_certificates_controller_1 = __importDefault(require("../controllers/institution-certificates.controller"));
+const institution_wallet_controller_1 = __importDefault(require("../controllers/institution-wallet.controller"));
 const router = (0, express_1.Router)();
 const institutionOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('INSTITUTION')];
 router.post('/students', institutionOnly, institution_students_controller_1.default.createStudent);
@@ -17,4 +18,6 @@ router.post('/certificates', institutionOnly, institution_certificates_controlle
 router.get('/certificates', institutionOnly, institution_certificates_controller_1.default.listCertificates);
 router.get('/certificates/:certificateId', institutionOnly, institution_certificates_controller_1.default.getCertificate);
 router.patch('/certificates/:certificateId/revoke', institutionOnly, institution_certificates_controller_1.default.revokeCertificate);
+router.put('/wallet', institutionOnly, institution_wallet_controller_1.default.setWalletAddress);
+router.get('/me/issuer-status', institutionOnly, institution_wallet_controller_1.default.getIssuerStatus);
 exports.default = router;
