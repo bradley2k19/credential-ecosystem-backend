@@ -20,6 +20,6 @@ function generateCertificateHash(input) {
         input.issueDate.toISOString(),
         input.certificateUid
     ].join('|');
-    return crypto_1.default.createHash('sha256').update(canonicalValue, 'utf8').digest('hex');
+    return `0x${crypto_1.default.createHash('sha256').update(canonicalValue, 'utf8').digest('hex')}`;
 }
 exports.default = generateCertificateHash;

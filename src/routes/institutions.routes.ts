@@ -16,6 +16,8 @@ router.post('/certificates', institutionOnly, institutionCertificatesController.
 router.get('/certificates', institutionOnly, institutionCertificatesController.listCertificates);
 router.get('/certificates/:certificateId', institutionOnly, institutionCertificatesController.getCertificate);
 router.patch('/certificates/:certificateId/revoke', institutionOnly, institutionCertificatesController.revokeCertificate);
+router.post('/certificates/:certificateId/blockchain-record', institutionOnly, institutionCertificatesController.recordBlockchainTransaction);
+router.get('/certificates/:certificateId/blockchain-status', institutionOnly, institutionCertificatesController.getBlockchainStatus);
 router.put('/wallet', institutionOnly, institutionWalletController.setWalletAddress);
 router.get('/me/issuer-status', institutionOnly, institutionWalletController.getIssuerStatus);
 

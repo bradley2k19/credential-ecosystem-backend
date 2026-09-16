@@ -4,6 +4,7 @@ import { CertificateStatus, Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { generateCertificateHash } from '../utils/certificateHash';
+import { blockchainProvider } from '../config/blockchain';
 
 const certificateFields = {
   id: true,
@@ -37,6 +38,13 @@ async function getInstitutionId(userId: string) {
     select: { id: true }
   });
   return institution?.id;
+}
+
+async function getOwnedCertificate(certificateId: string, institutionId: string) {
+  return prisma.certificate.findFirst({
+    where: { id: certificateId, institutionId },
+    select: { id: true, certificateUid: true }
+  });
 }
 
 function parseDate(value: unknown) {
@@ -169,7 +177,7 @@ export async function revokeCertificate(req: AuthRequest, res: Response) {
   try {
     const certificate = await prisma.certificate.findFirst({
       where: { id: req.params.certificateId, institutionId },
-      select: { id: true, status: true }
+      select: { id: true, certificateUid: true, status: true }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
     if (certificate.status === CertificateStatus.REVOKED) {
@@ -188,4 +196,90 @@ export async function revokeCertificate(req: AuthRequest, res: Response) {
   }
 }
 
-export default { issueCertificate, listCertificates, getCertificate, revokeCertificate };
+export async function recordBlockchainTransaction(req: AuthRequest, res: Response) {
+  const { txType, txHash } = req.body;
+  if (!['ISSUE', 'REVOKE'].includes(txType) || typeof txHash !== 'string' || !txHash.trim()) {
+    return res.status(400).json({ error: 'txType must be ISSUE or REVOKE and txHash is required' });
+  }
+
+  const institutionId = req.user ? await getInstitutionId(req.user.id) : undefined;
+  if (!institutionId) return res.status(403).json({ error: 'Institution profile not found' });
+
+  try {
+    const certificate = await getOwnedCertificate(req.params.certificateId, institutionId);
+    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
+
+    const existingConfirmed = await prisma.blockchainTransaction.findFirst({
+      where: { certificateId: certificate.id, txType, status: 'CONFIRMED' },
+      select: { id: true }
+    });
+    if (existingConfirmed) {
+      return res.status(409).json({ error: `A confirmed ${txType} transaction already exists for this certificate` });
+    }
+
+    const transaction = await prisma.blockchainTransaction.create({
+      data: {
+        certificateId: certificate.id,
+        txType,
+        txHash: txHash.trim(),
+        network: 'amoy',
+        status: 'PENDING',
+        submittedAt: new Date()
+      }
+    });
+    return res.status(201).json(transaction);
+  } catch (error) {
+    console.error('Database error while recording blockchain transaction:', error instanceof Error ? error.message : error);
+    return res.status(503).json({ error: 'Database unreachable or operation failed' });
+  }
+}
+
+export async function getBlockchainStatus(req: AuthRequest, res: Response) {
+  const institutionId = req.user ? await getInstitutionId(req.user.id) : undefined;
+  if (!institutionId) return res.status(403).json({ error: 'Institution profile not found' });
+
+  try {
+    const certificate = await getOwnedCertificate(req.params.certificateId, institutionId);
+    if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
+
+    const transactions = await prisma.blockchainTransaction.findMany({
+      where: { certificateId: certificate.id },
+      orderBy: { submittedAt: 'desc' }
+    });
+
+    for (const transaction of transactions.filter((item) => item.status === 'PENDING')) {
+      const receipt = await blockchainProvider.getTransactionReceipt(transaction.txHash);
+      if (!receipt) continue;
+
+      await prisma.blockchainTransaction.update({
+        where: { id: transaction.id },
+        data: receipt.status === 1
+          ? {
+              status: 'CONFIRMED',
+              blockNumber: receipt.blockNumber,
+              gasUsed: Number(receipt.gasUsed),
+              confirmedAt: new Date()
+            }
+          : { status: 'FAILED', confirmedAt: new Date() }
+      });
+    }
+
+    const currentTransactions = await prisma.blockchainTransaction.findMany({
+      where: { certificateId: certificate.id },
+      orderBy: { submittedAt: 'desc' }
+    });
+    return res.json({ certificateId: certificate.id, certificateUid: certificate.certificateUid, transactions: currentTransactions });
+  } catch (error) {
+    console.error('Blockchain status error:', error instanceof Error ? error.message : error);
+    return res.status(503).json({ error: 'Database or blockchain provider unavailable' });
+  }
+}
+
+export default {
+  issueCertificate,
+  listCertificates,
+  getCertificate,
+  revokeCertificate,
+  recordBlockchainTransaction,
+  getBlockchainStatus
+};

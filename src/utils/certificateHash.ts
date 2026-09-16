@@ -26,7 +26,7 @@ export function generateCertificateHash(input: CertificateHashInput) {
     input.certificateUid
   ].join('|');
 
-  return crypto.createHash('sha256').update(canonicalValue, 'utf8').digest('hex');
+  return `0x${crypto.createHash('sha256').update(canonicalValue, 'utf8').digest('hex')}`;
 }
 
 export default generateCertificateHash;

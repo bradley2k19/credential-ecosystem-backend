@@ -7,10 +7,13 @@ exports.issueCertificate = issueCertificate;
 exports.listCertificates = listCertificates;
 exports.getCertificate = getCertificate;
 exports.revokeCertificate = revokeCertificate;
+exports.recordBlockchainTransaction = recordBlockchainTransaction;
+exports.getBlockchainStatus = getBlockchainStatus;
 const crypto_1 = __importDefault(require("crypto"));
 const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const certificateHash_1 = require("../utils/certificateHash");
+const blockchain_1 = require("../config/blockchain");
 const certificateFields = {
     id: true,
     certificateUid: true,
@@ -42,6 +45,12 @@ async function getInstitutionId(userId) {
         select: { id: true }
     });
     return institution?.id;
+}
+async function getOwnedCertificate(certificateId, institutionId) {
+    return db_1.default.certificate.findFirst({
+        where: { id: certificateId, institutionId },
+        select: { id: true, certificateUid: true }
+    });
 }
 function parseDate(value) {
     if (typeof value !== 'string' && !(value instanceof Date))
@@ -168,7 +177,7 @@ async function revokeCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: { id: true, status: true }
+            select: { id: true, certificateUid: true, status: true }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
@@ -187,4 +196,86 @@ async function revokeCertificate(req, res) {
         return res.status(503).json({ error: 'Database unreachable or operation failed' });
     }
 }
-exports.default = { issueCertificate, listCertificates, getCertificate, revokeCertificate };
+async function recordBlockchainTransaction(req, res) {
+    const { txType, txHash } = req.body;
+    if (!['ISSUE', 'REVOKE'].includes(txType) || typeof txHash !== 'string' || !txHash.trim()) {
+        return res.status(400).json({ error: 'txType must be ISSUE or REVOKE and txHash is required' });
+    }
+    const institutionId = req.user ? await getInstitutionId(req.user.id) : undefined;
+    if (!institutionId)
+        return res.status(403).json({ error: 'Institution profile not found' });
+    try {
+        const certificate = await getOwnedCertificate(req.params.certificateId, institutionId);
+        if (!certificate)
+            return res.status(404).json({ error: 'Certificate not found' });
+        const existingConfirmed = await db_1.default.blockchainTransaction.findFirst({
+            where: { certificateId: certificate.id, txType, status: 'CONFIRMED' },
+            select: { id: true }
+        });
+        if (existingConfirmed) {
+            return res.status(409).json({ error: `A confirmed ${txType} transaction already exists for this certificate` });
+        }
+        const transaction = await db_1.default.blockchainTransaction.create({
+            data: {
+                certificateId: certificate.id,
+                txType,
+                txHash: txHash.trim(),
+                network: 'amoy',
+                status: 'PENDING',
+                submittedAt: new Date()
+            }
+        });
+        return res.status(201).json(transaction);
+    }
+    catch (error) {
+        console.error('Database error while recording blockchain transaction:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable or operation failed' });
+    }
+}
+async function getBlockchainStatus(req, res) {
+    const institutionId = req.user ? await getInstitutionId(req.user.id) : undefined;
+    if (!institutionId)
+        return res.status(403).json({ error: 'Institution profile not found' });
+    try {
+        const certificate = await getOwnedCertificate(req.params.certificateId, institutionId);
+        if (!certificate)
+            return res.status(404).json({ error: 'Certificate not found' });
+        const transactions = await db_1.default.blockchainTransaction.findMany({
+            where: { certificateId: certificate.id },
+            orderBy: { submittedAt: 'desc' }
+        });
+        for (const transaction of transactions.filter((item) => item.status === 'PENDING')) {
+            const receipt = await blockchain_1.blockchainProvider.getTransactionReceipt(transaction.txHash);
+            if (!receipt)
+                continue;
+            await db_1.default.blockchainTransaction.update({
+                where: { id: transaction.id },
+                data: receipt.status === 1
+                    ? {
+                        status: 'CONFIRMED',
+                        blockNumber: receipt.blockNumber,
+                        gasUsed: Number(receipt.gasUsed),
+                        confirmedAt: new Date()
+                    }
+                    : { status: 'FAILED', confirmedAt: new Date() }
+            });
+        }
+        const currentTransactions = await db_1.default.blockchainTransaction.findMany({
+            where: { certificateId: certificate.id },
+            orderBy: { submittedAt: 'desc' }
+        });
+        return res.json({ certificateId: certificate.id, certificateUid: certificate.certificateUid, transactions: currentTransactions });
+    }
+    catch (error) {
+        console.error('Blockchain status error:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database or blockchain provider unavailable' });
+    }
+}
+exports.default = {
+    issueCertificate,
+    listCertificates,
+    getCertificate,
+    revokeCertificate,
+    recordBlockchainTransaction,
+    getBlockchainStatus
+};
