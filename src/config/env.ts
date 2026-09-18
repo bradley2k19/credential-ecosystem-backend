@@ -27,7 +27,7 @@ export const env = {
   CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS as string,
   ADMIN_PRIVATE_KEY: process.env.ADMIN_PRIVATE_KEY as string,
   ADMIN_SECRET_KEY: process.env.ADMIN_SECRET_KEY as string,
-  PORT: process.env.PORT ? Number(process.env.PORT) : 3000,
+  PORT: process.env.PORT ? Number(process.env.PORT) : 3001,
   NODE_ENV: process.env.NODE_ENV || 'development'
 };
 
