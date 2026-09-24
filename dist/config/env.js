@@ -27,7 +27,7 @@ exports.env = {
     CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
     ADMIN_PRIVATE_KEY: process.env.ADMIN_PRIVATE_KEY,
     ADMIN_SECRET_KEY: process.env.ADMIN_SECRET_KEY,
-    PORT: process.env.PORT ? Number(process.env.PORT) : 3000,
+    PORT: process.env.PORT ? Number(process.env.PORT) : 3001,
     NODE_ENV: process.env.NODE_ENV || 'development'
 };
 exports.default = exports.env;
