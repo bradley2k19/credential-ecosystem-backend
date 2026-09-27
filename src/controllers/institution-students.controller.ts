@@ -25,6 +25,15 @@ function isUniqueConstraintError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+function studentConflictMessage(emailConflict: boolean, studentNumberConflict: boolean) {
+  if (emailConflict && studentNumberConflict) {
+    return 'This email is already registered, and this student number is already in use at your institution.';
+  }
+  if (emailConflict) return 'This email is already registered.';
+  if (studentNumberConflict) return 'This student number is already in use at your institution.';
+  return 'A student account with one of these unique fields already exists.';
+}
+
 function generateTemporaryPassword() {
   return crypto.randomBytes(24).toString('base64url');
 }
@@ -46,8 +55,16 @@ export async function createStudent(req: AuthRequest, res: Response) {
   const institutionId = req.user ? await getInstitutionId(req.user.id) : undefined;
   if (!institutionId) return res.status(403).json({ error: 'Institution profile not found' });
 
-  const temporaryPassword = generateTemporaryPassword();
   try {
+    const [existingUser, existingStudent] = await Promise.all([
+      prisma.user.findUnique({ where: { email }, select: { id: true } }),
+      prisma.student.findFirst({ where: { institutionId, studentNumber }, select: { id: true } })
+    ]);
+    if (existingUser || existingStudent) {
+      return res.status(409).json({ error: studentConflictMessage(Boolean(existingUser), Boolean(existingStudent)) });
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await hashPassword(temporaryPassword);
     const student = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -76,7 +93,15 @@ export async function createStudent(req: AuthRequest, res: Response) {
     });
   } catch (error) {
     if (isUniqueConstraintError(error)) {
-      return res.status(409).json({ error: 'Email or student number is already registered' });
+      try {
+        const [existingUser, existingStudent] = await Promise.all([
+          prisma.user.findUnique({ where: { email }, select: { id: true } }),
+          prisma.student.findFirst({ where: { institutionId, studentNumber }, select: { id: true } })
+        ]);
+        return res.status(409).json({ error: studentConflictMessage(Boolean(existingUser), Boolean(existingStudent)) });
+      } catch {
+        return res.status(409).json({ error: 'A student account with one of these unique fields already exists.' });
+      }
     }
     console.error('Database error while creating student:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Database unreachable or operation failed' });
