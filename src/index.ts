@@ -5,6 +5,8 @@ import errorHandler from './middleware/error.middleware';
 import authRoutes from './routes/auth.routes';
 import institutionRoutes from './routes/institutions.routes';
 import adminRoutes from './routes/admin.routes';
+import verifyRoutes from './routes/verify.routes';
+import employerRoutes from './routes/employers.routes';
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/verify', verifyRoutes);
+app.use('/api/employers', employerRoutes);
 
 // Centralized error handling
 app.use(errorHandler);

@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import verifyController from '../controllers/verify.controller';
 
 const router = Router();
 
-router.get('/', (req, res) => res.json({ message: 'Verify routes placeholder' }));
+router.get('/:certificateUid', verifyController.verifyCertificate);
 
 export default router;

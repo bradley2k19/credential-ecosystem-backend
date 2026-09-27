@@ -38,6 +38,8 @@ enum VerificationResult {
   VALID
   REVOKED
   NOT_FOUND
+  TAMPERED
+  PENDING_CHAIN
 }
 
 enum CorrectionStatus {

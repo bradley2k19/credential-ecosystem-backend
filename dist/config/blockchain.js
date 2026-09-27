@@ -10,7 +10,7 @@ const certificateRegistryAbi = [
     'function ISSUER_ROLE() view returns (bytes32)',
     'function isIssuer(address account) view returns (bool)',
     'function grantRole(bytes32 role, address account)',
-    'function getCertificate(bytes32 certificateUid) view returns (bytes32, address, address, uint256, bool)',
+    'function getCertificate(string certificateUid) view returns (bytes32 certificateHash, address issuer, bool revoked, uint256 issuedAt)',
     'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)'
 ];
 exports.blockchainProvider = new ethers_1.JsonRpcProvider(env_1.default.BLOCKCHAIN_RPC_URL);

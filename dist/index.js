@@ -10,6 +10,8 @@ const error_middleware_1 = __importDefault(require("./middleware/error.middlewar
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const institutions_routes_1 = __importDefault(require("./routes/institutions.routes"));
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
+const verify_routes_1 = __importDefault(require("./routes/verify.routes"));
+const employers_routes_1 = __importDefault(require("./routes/employers.routes"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)({
@@ -21,6 +23,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/institutions', institutions_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
+app.use('/api/verify', verify_routes_1.default);
+app.use('/api/employers', employers_routes_1.default);
 // Centralized error handling
 app.use(error_middleware_1.default);
 exports.default = app;
