@@ -120,14 +120,28 @@
 <dataTypePrecision>10</dataTypePrecision>
 <ownDataTypeParameters>,,</ownDataTypeParameters>
 </Attribute>
+<Attribute name="wallet_address" id="0E448B9B-1C7E-7C3B-8789-02B9516AC505">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-28 07:23:54 UTC</createdTime>
+<ownerDesignName>DataModel</ownerDesignName>
+<engineerTo>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+</engineerTo>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+</Attribute>
 </attributes>
 <identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
 <identifier id="279594DD-BD53-D273-99AB-2F4CE79720C1" name="INSTITUTION PK">
 <createdBy>Augustin Bradley</createdBy>
 <createdTime>2026-09-08 05:30:55 UTC</createdTime>
 <ownerDesignName>DataModel</ownerDesignName>
+<shouldEngineer>false</shouldEngineer>
 <engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="false"/>
 </engineerTo>
 <pk>true</pk>
 <usedAttributes>

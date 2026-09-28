@@ -91,7 +91,7 @@
 <use>1</use>
 <logicalDatatype>LOGDT019</logicalDatatype>
 <dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
 </Attribute>
 <Attribute name="id2" id="402D7619-8CA7-E2DF-6070-380347A7C6D5">
 <createdBy>Augustin Bradley</createdBy>
@@ -106,7 +106,7 @@
 <use>1</use>
 <logicalDatatype>LOGDT024</logicalDatatype>
 <dataTypeSize>10</dataTypeSize>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
+<ownDataTypeParameters>10,,</ownDataTypeParameters>
 </Attribute>
 </attributes>
 <identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
@@ -114,8 +114,9 @@
 <createdBy>Augustin Bradley</createdBy>
 <createdTime>2026-09-08 06:07:43 UTC</createdTime>
 <ownerDesignName>DataModel</ownerDesignName>
+<shouldEngineer>false</shouldEngineer>
 <engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="false"/>
 </engineerTo>
 <pk>true</pk>
 <usedAttributes>

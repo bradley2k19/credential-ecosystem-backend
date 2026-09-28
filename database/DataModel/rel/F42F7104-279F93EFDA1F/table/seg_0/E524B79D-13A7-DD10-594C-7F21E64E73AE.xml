@@ -100,12 +100,24 @@
 <use>1</use>
 <logicalDatatype>LOGDT019</logicalDatatype>
 <dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
+<ownDataTypeParameters>,10,</ownDataTypeParameters>
 <previousColumn>false</previousColumn>
 <autoIncrementCycle>false</autoIncrementCycle>
 <associations>
 <colAssociation fkAssociation="CAA4194E-1271-A15D-C29A-69E2CA01EDE7" referredColumn="02B71BFE-724E-A5EE-5314-952961549CFB"/>
 </associations>
+</Column>
+<Column name="wallet_address" id="B35B021C-FE0F-9FD0-C355-44659BD78F4D">
+<createdBy>Augustin Bradley</createdBy>
+<createdTime>2026-09-28 07:33:59 UTC</createdTime>
+<generatorID>0E448B9B-1C7E-7C3B-8789-02B9516AC505</generatorID>
+<ownerDesignName>DataModel</ownerDesignName>
+<useDomainConstraints>false</useDomainConstraints>
+<use>1</use>
+<logicalDatatype>LOGDT024</logicalDatatype>
+<dataTypeSize>100</dataTypeSize>
+<ownDataTypeParameters>100,,</ownDataTypeParameters>
+<autoIncrementCycle>false</autoIncrementCycle>
 </Column>
 </columns>
 <indexes itemClass="oracle.dbtools.crest.model.design.relational.Index">

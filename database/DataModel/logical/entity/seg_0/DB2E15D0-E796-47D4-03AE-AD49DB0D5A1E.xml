@@ -104,74 +104,15 @@
 <logicalDatatype>LOGDT008</logicalDatatype>
 <ownDataTypeParameters>,,</ownDataTypeParameters>
 </Attribute>
-<Attribute name="id1" id="B9C7C05A-DAD4-2212-5273-D5F3200F4955">
-<createdBy>Augustin Bradley</createdBy>
-<createdTime>2026-09-08 06:30:35 UTC</createdTime>
-<generatorID>59BCC7FE-42BB-A50B-748A-68CAAE7E487C</generatorID>
-<ownerDesignName>DataModel</ownerDesignName>
-<engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
-</engineerTo>
-<referedAttribute>43D6B708-7BBE-C14B-72F8-917A6468E150</referedAttribute>
-<useDomainConstraints>false</useDomainConstraints>
-<use>1</use>
-<logicalDatatype>LOGDT019</logicalDatatype>
-<dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
-</Attribute>
-<Attribute name="id2" id="86456830-62E2-C0FE-4668-1D946C8621F9">
-<createdBy>Augustin Bradley</createdBy>
-<createdTime>2026-09-08 06:33:13 UTC</createdTime>
-<generatorID>09556282-496E-D92A-3C11-4E968358B21D</generatorID>
-<ownerDesignName>DataModel</ownerDesignName>
-<engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
-</engineerTo>
-<referedAttribute>541DC02C-2886-3D69-F1F2-95062DC1F103</referedAttribute>
-<useDomainConstraints>false</useDomainConstraints>
-<use>1</use>
-<logicalDatatype>LOGDT019</logicalDatatype>
-<dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
-</Attribute>
-<Attribute name="id3" id="26C1B6B4-12AB-7FAE-D260-359AA9A52ED6">
-<createdBy>Augustin Bradley</createdBy>
-<createdTime>2026-09-08 06:34:37 UTC</createdTime>
-<generatorID>04515DCB-AEE5-E89C-C112-5C0E882C6671</generatorID>
-<ownerDesignName>DataModel</ownerDesignName>
-<engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
-</engineerTo>
-<referedAttribute>30412911-D706-5F04-E444-5C21153795CF</referedAttribute>
-<useDomainConstraints>false</useDomainConstraints>
-<use>1</use>
-<logicalDatatype>LOGDT019</logicalDatatype>
-<dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
-</Attribute>
-<Attribute name="id4" id="4A514E5D-912F-E45C-4DA3-EC05F047154A">
-<createdBy>Augustin Bradley</createdBy>
-<createdTime>2026-09-08 06:37:14 UTC</createdTime>
-<generatorID>96E0E405-C853-C27E-1F7E-A547142D7E60</generatorID>
-<ownerDesignName>DataModel</ownerDesignName>
-<engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
-</engineerTo>
-<referedAttribute>09B5A959-4561-3FAF-EBBB-9CA16183662B</referedAttribute>
-<useDomainConstraints>false</useDomainConstraints>
-<use>1</use>
-<logicalDatatype>LOGDT019</logicalDatatype>
-<dataTypePrecision>10</dataTypePrecision>
-<ownDataTypeParameters>,,</ownDataTypeParameters>
-</Attribute>
 </attributes>
 <identifiers itemClass="oracle.dbtools.crest.model.design.logical.CandidateKey">
 <identifier id="B6C64A6E-C44E-CB3D-E1B5-23D6EF8B2CC9" name="USER PK">
 <createdBy>Augustin Bradley</createdBy>
 <createdTime>2026-09-08 05:26:50 UTC</createdTime>
 <ownerDesignName>DataModel</ownerDesignName>
+<shouldEngineer>false</shouldEngineer>
 <engineerTo>
-<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="true"/>
+<item key="F42F7104-D4F6-081C-2FB8-279F93EFDA1F" value="false"/>
 </engineerTo>
 <pk>true</pk>
 <usedAttributes>
