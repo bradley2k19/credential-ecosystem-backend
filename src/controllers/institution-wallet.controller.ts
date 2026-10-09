@@ -59,10 +59,11 @@ export async function getIssuerStatus(req: AuthRequest, res: Response) {
   try {
     const institution = req.user ? await getInstitution(req.user.id) : null;
     if (!institution) return res.status(404).json({ error: 'Institution profile not found' });
-    if (!institution.walletAddress) return res.json({ hasWallet: false });
+    if (!institution.walletAddress) return res.json({ hasWallet: false, walletAddress: null });
 
-    const isIssuer = await certificateRegistry.isIssuer(institution.walletAddress);
-    return res.json({ hasWallet: true, isIssuer });
+    const walletAddress = getAddress(institution.walletAddress);
+    const isIssuer = await certificateRegistry.isIssuer(walletAddress);
+    return res.json({ hasWallet: true, isIssuer, walletAddress });
   } catch (error) {
     console.error('Blockchain read error while checking issuer status:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Blockchain provider unavailable' });
