@@ -18,7 +18,7 @@ app.use((0, cors_1.default)({
     origin: env_1.default.FRONTEND_URL
 }));
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime() });
+    res.json({ status: 'ok', uptime: process.uptime(), commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null });
 });
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/institutions', institutions_routes_1.default);

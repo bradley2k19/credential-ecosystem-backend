@@ -131,16 +131,35 @@ async function listCertificates(req, res) {
         ...(statusValue ? { status: statusValue } : {})
     };
     try {
-        const [certificates, total] = await db_1.default.$transaction([
+        const [rows, total] = await db_1.default.$transaction([
             db_1.default.certificate.findMany({
                 where,
-                select: certificateFields,
+                select: {
+                    ...certificateFields,
+                    blockchainTransactions: {
+                        select: { txType: true, txHash: true, status: true, submittedAt: true },
+                        orderBy: { submittedAt: 'desc' }
+                    }
+                },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
                 take: limit
             }),
             db_1.default.certificate.count({ where })
         ]);
+        // Summarise on-chain state per certificate: a confirmed transaction wins, otherwise the most recent attempt.
+        const latestTransaction = (transactions, txType) => {
+            const ofType = transactions.filter((item) => item.txType === txType);
+            const transaction = ofType.find((item) => item.status === 'CONFIRMED') ?? ofType[0];
+            return transaction ? { txHash: transaction.txHash, status: transaction.status, submittedAt: transaction.submittedAt } : null;
+        };
+        const certificates = rows.map(({ blockchainTransactions, ...certificate }) => ({
+            ...certificate,
+            onChain: {
+                issue: latestTransaction(blockchainTransactions, 'ISSUE'),
+                revoke: latestTransaction(blockchainTransactions, 'REVOKE')
+            }
+        }));
         return res.json({ certificates, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
     catch (error) {

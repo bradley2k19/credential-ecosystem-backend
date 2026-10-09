@@ -18,7 +18,7 @@ app.use(
 );
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+  res.json({ status: 'ok', uptime: process.uptime(), commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null });
 });
 
 app.use('/api/auth', authRoutes);
