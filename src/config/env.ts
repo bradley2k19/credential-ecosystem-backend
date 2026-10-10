@@ -19,10 +19,20 @@ if (missing.length) {
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
 }
 
+// FRONTEND_URL is a comma-separated list of allowed browser origins; a single value also works.
+const frontendOrigins = (process.env.FRONTEND_URL as string)
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+if (!frontendOrigins.length) {
+  throw new Error('FRONTEND_URL must contain at least one origin');
+}
+
 export const env = {
   DATABASE_URL: process.env.DATABASE_URL as string,
   JWT_SECRET: process.env.JWT_SECRET as string,
   FRONTEND_URL: process.env.FRONTEND_URL as string,
+  FRONTEND_ORIGINS: frontendOrigins,
   BLOCKCHAIN_RPC_URL: process.env.BLOCKCHAIN_RPC_URL as string,
   CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS as string,
   ADMIN_PRIVATE_KEY: process.env.ADMIN_PRIVATE_KEY as string,

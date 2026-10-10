@@ -16,7 +16,10 @@ const students_routes_1 = __importDefault(require("./routes/students.routes"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)({
-    origin: env_1.default.FRONTEND_URL
+    // Exact-match allowlist: only a listed origin is echoed back, never a wildcard or an arbitrary origin.
+    // Requests without an Origin header (server-to-server tools) are not affected by CORS and still pass.
+    origin: env_1.default.FRONTEND_ORIGINS,
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null });

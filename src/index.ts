@@ -14,7 +14,10 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: env.FRONTEND_URL
+    // Exact-match allowlist: only a listed origin is echoed back, never a wildcard or an arbitrary origin.
+    // Requests without an Origin header (server-to-server tools) are not affected by CORS and still pass.
+    origin: env.FRONTEND_ORIGINS,
+    allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
 
