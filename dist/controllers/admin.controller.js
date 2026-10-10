@@ -19,7 +19,7 @@ async function grantIssuerRole(req, res) {
         if (!institution.isVerified)
             return res.status(400).json({ error: 'Institution must be verified before receiving issuer access' });
         const issuerRole = await blockchain_1.adminCertificateRegistry.ISSUER_ROLE();
-        const transaction = await blockchain_1.adminCertificateRegistry.grantRole(issuerRole, institution.walletAddress);
+        const transaction = await blockchain_1.adminCertificateRegistry.grantRole(issuerRole, institution.walletAddress, await (0, blockchain_1.getFeeOverrides)());
         const receipt = await transaction.wait();
         return res.json({
             institutionId: institution.id,

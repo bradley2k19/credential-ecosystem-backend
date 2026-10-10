@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import prisma from '../config/db';
-import { adminCertificateRegistry } from '../config/blockchain';
+import { adminCertificateRegistry, getFeeOverrides } from '../config/blockchain';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 export async function grantIssuerRole(req: AuthRequest, res: Response) {
@@ -14,7 +14,7 @@ export async function grantIssuerRole(req: AuthRequest, res: Response) {
     if (!institution.isVerified) return res.status(400).json({ error: 'Institution must be verified before receiving issuer access' });
 
     const issuerRole = await adminCertificateRegistry.ISSUER_ROLE();
-    const transaction = await adminCertificateRegistry.grantRole(issuerRole, institution.walletAddress);
+    const transaction = await adminCertificateRegistry.grantRole(issuerRole, institution.walletAddress, await getFeeOverrides());
     const receipt = await transaction.wait();
 
     return res.json({

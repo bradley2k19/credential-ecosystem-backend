@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, Wallet } from 'ethers';
+import { Contract, JsonRpcProvider, Wallet, parseUnits } from 'ethers';
 import env from './env';
 
 const certificateRegistryAbi = [
@@ -16,6 +16,22 @@ export const certificateRegistry = new Contract(
   certificateRegistryAbi,
   blockchainProvider
 );
+
+// Polygon Amoy rejects transactions whose priority fee (gas tip cap) is below 25 gwei, but RPC fee
+// estimates often suggest about 1.5 gwei. 30 gwei keeps a safe margin above that minimum.
+const MIN_PRIORITY_FEE_PER_GAS = parseUnits('30', 'gwei');
+
+function maxBigInt(a: bigint, b: bigint) {
+  return a > b ? a : b;
+}
+
+// Fee overrides for backend-signed write transactions, so the network's minimum priority fee is always met.
+export async function getFeeOverrides() {
+  const feeData = await blockchainProvider.getFeeData();
+  const maxPriorityFeePerGas = maxBigInt(feeData.maxPriorityFeePerGas ?? 0n, MIN_PRIORITY_FEE_PER_GAS);
+  const maxFeePerGas = maxBigInt(feeData.maxFeePerGas ?? 0n, 2n * maxPriorityFeePerGas);
+  return { maxPriorityFeePerGas, maxFeePerGas };
+}
 
 const adminWallet = new Wallet(env.ADMIN_PRIVATE_KEY, blockchainProvider);
 
