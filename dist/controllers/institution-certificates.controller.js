@@ -14,6 +14,7 @@ const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const certificateHash_1 = require("../utils/certificateHash");
 const blockchain_1 = require("../config/blockchain");
+const onChain_1 = require("../utils/onChain");
 const certificateFields = {
     id: true,
     certificateUid: true,
@@ -136,10 +137,7 @@ async function listCertificates(req, res) {
                 where,
                 select: {
                     ...certificateFields,
-                    blockchainTransactions: {
-                        select: { txType: true, txHash: true, status: true, submittedAt: true },
-                        orderBy: { submittedAt: 'desc' }
-                    }
+                    blockchainTransactions: onChain_1.onChainTransactionsSelect
                 },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
@@ -147,18 +145,9 @@ async function listCertificates(req, res) {
             }),
             db_1.default.certificate.count({ where })
         ]);
-        // Summarise on-chain state per certificate: a confirmed transaction wins, otherwise the most recent attempt.
-        const latestTransaction = (transactions, txType) => {
-            const ofType = transactions.filter((item) => item.txType === txType);
-            const transaction = ofType.find((item) => item.status === 'CONFIRMED') ?? ofType[0];
-            return transaction ? { txHash: transaction.txHash, status: transaction.status, submittedAt: transaction.submittedAt } : null;
-        };
         const certificates = rows.map(({ blockchainTransactions, ...certificate }) => ({
             ...certificate,
-            onChain: {
-                issue: latestTransaction(blockchainTransactions, 'ISSUE'),
-                revoke: latestTransaction(blockchainTransactions, 'REVOKE')
-            }
+            onChain: (0, onChain_1.summariseOnChain)(blockchainTransactions)
         }));
         return res.json({ certificates, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }

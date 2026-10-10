@@ -5,6 +5,7 @@ import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { generateCertificateHash } from '../utils/certificateHash';
 import { blockchainProvider } from '../config/blockchain';
+import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
 
 const certificateFields = {
   id: true,
@@ -136,10 +137,7 @@ export async function listCertificates(req: AuthRequest, res: Response) {
         where,
         select: {
           ...certificateFields,
-          blockchainTransactions: {
-            select: { txType: true, txHash: true, status: true, submittedAt: true },
-            orderBy: { submittedAt: 'desc' }
-          }
+          blockchainTransactions: onChainTransactionsSelect
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -148,18 +146,9 @@ export async function listCertificates(req: AuthRequest, res: Response) {
       prisma.certificate.count({ where })
     ]);
 
-    // Summarise on-chain state per certificate: a confirmed transaction wins, otherwise the most recent attempt.
-    const latestTransaction = (transactions: typeof rows[number]['blockchainTransactions'], txType: 'ISSUE' | 'REVOKE') => {
-      const ofType = transactions.filter((item) => item.txType === txType);
-      const transaction = ofType.find((item) => item.status === 'CONFIRMED') ?? ofType[0];
-      return transaction ? { txHash: transaction.txHash, status: transaction.status, submittedAt: transaction.submittedAt } : null;
-    };
     const certificates = rows.map(({ blockchainTransactions, ...certificate }) => ({
       ...certificate,
-      onChain: {
-        issue: latestTransaction(blockchainTransactions, 'ISSUE'),
-        revoke: latestTransaction(blockchainTransactions, 'REVOKE')
-      }
+      onChain: summariseOnChain(blockchainTransactions)
     }));
 
     return res.json({ certificates, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });

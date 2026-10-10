@@ -12,6 +12,7 @@ const institutions_routes_1 = __importDefault(require("./routes/institutions.rou
 const admin_routes_1 = __importDefault(require("./routes/admin.routes"));
 const verify_routes_1 = __importDefault(require("./routes/verify.routes"));
 const employers_routes_1 = __importDefault(require("./routes/employers.routes"));
+const students_routes_1 = __importDefault(require("./routes/students.routes"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 app.use((0, cors_1.default)({
@@ -25,6 +26,7 @@ app.use('/api/institutions', institutions_routes_1.default);
 app.use('/api/admin', admin_routes_1.default);
 app.use('/api/verify', verify_routes_1.default);
 app.use('/api/employers', employers_routes_1.default);
+app.use('/api/students', students_routes_1.default);
 // Centralized error handling
 app.use(error_middleware_1.default);
 exports.default = app;

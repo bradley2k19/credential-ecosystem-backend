@@ -7,6 +7,7 @@ import institutionRoutes from './routes/institutions.routes';
 import adminRoutes from './routes/admin.routes';
 import verifyRoutes from './routes/verify.routes';
 import employerRoutes from './routes/employers.routes';
+import studentRoutes from './routes/students.routes';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/institutions', institutionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/verify', verifyRoutes);
 app.use('/api/employers', employerRoutes);
+app.use('/api/students', studentRoutes);
 
 // Centralized error handling
 app.use(errorHandler);

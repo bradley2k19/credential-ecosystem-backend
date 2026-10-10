@@ -138,4 +138,34 @@ async function login(req, res) {
         return res.status(503).json({ error: 'Database unreachable' });
     }
 }
-exports.default = { registerInstitution, registerStudent, registerEmployer, login };
+async function changePassword(req, res) {
+    const userId = req.user?.id;
+    if (!userId)
+        return res.status(401).json({ error: 'Authentication required' });
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+        return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    }
+    if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+    try {
+        const user = await db_1.default.user.findUnique({ where: { id: userId }, select: { id: true, passwordHash: true } });
+        if (!user)
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        const ok = await (0, password_1.comparePassword)(currentPassword, user.passwordHash);
+        if (!ok)
+            return res.status(400).json({ error: 'Current password is incorrect' });
+        if (newPassword === currentPassword) {
+            return res.status(400).json({ error: 'New password must be different from the current password' });
+        }
+        const passwordHash = await (0, password_1.hashPassword)(newPassword);
+        await db_1.default.user.update({ where: { id: user.id }, data: { passwordHash } });
+        return res.json({ message: 'Password changed successfully' });
+    }
+    catch (err) {
+        console.error('Database error while changing password:', err.message || err);
+        return res.status(503).json({ error: 'Database unreachable or operation failed' });
+    }
+}
+exports.default = { registerInstitution, registerStudent, registerEmployer, login, changePassword };

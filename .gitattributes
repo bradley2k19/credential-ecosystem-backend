@@ -1,0 +1,2 @@
+# Hooks run under sh (Git for Windows included) and break on CRLF line endings.
+.githooks/* text eol=lf

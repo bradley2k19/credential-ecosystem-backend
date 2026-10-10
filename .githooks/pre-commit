@@ -1,0 +1,11 @@
+#!/bin/sh
+# Vercel serves the committed dist/ and does not compile TypeScript, so every
+# commit must carry a dist/ that matches src/. Rebuild, then stage the output.
+# Enabled by `git config core.hooksPath .githooks` (see README).
+
+if ! npm run build; then
+  echo "pre-commit: build failed, commit aborted." >&2
+  exit 1
+fi
+
+git add dist
