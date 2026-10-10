@@ -26,5 +26,8 @@ npm install                              # the "prepare" script sets core.hooksP
 git config core.hooksPath .githooks
 ```
 
+The `prepare` script ([scripts/install-hooks.js](scripts/install-hooks.js)) does nothing, and never fails, when
+there is no `.git` folder or no `git` binary, so it is safe on Vercel.
+
 Check with `git config core.hooksPath` (should print `.githooks`). It is a plain `sh` script and works with
 Git for Windows; `.gitattributes` keeps it on LF line endings.
