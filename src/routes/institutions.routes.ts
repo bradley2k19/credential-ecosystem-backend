@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../middleware/auth.middleware';
 import institutionStudentsController from '../controllers/institution-students.controller';
 import institutionCertificatesController from '../controllers/institution-certificates.controller';
 import institutionWalletController from '../controllers/institution-wallet.controller';
+import institutionReportsController from '../controllers/institution-reports.controller';
 
 const router = Router();
 
@@ -20,5 +21,8 @@ router.post('/certificates/:certificateId/blockchain-record', institutionOnly, i
 router.get('/certificates/:certificateId/blockchain-status', institutionOnly, institutionCertificatesController.getBlockchainStatus);
 router.put('/wallet', institutionOnly, institutionWalletController.setWalletAddress);
 router.get('/me/issuer-status', institutionOnly, institutionWalletController.getIssuerStatus);
+router.get('/verifications', institutionOnly, institutionReportsController.listVerifications);
+router.get('/reports/summary', institutionOnly, institutionReportsController.getSummary);
+router.get('/reports/certificates.csv', institutionOnly, institutionReportsController.exportCertificatesCsv);
 
 export default router;

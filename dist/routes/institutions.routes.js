@@ -8,6 +8,7 @@ const auth_middleware_1 = require("../middleware/auth.middleware");
 const institution_students_controller_1 = __importDefault(require("../controllers/institution-students.controller"));
 const institution_certificates_controller_1 = __importDefault(require("../controllers/institution-certificates.controller"));
 const institution_wallet_controller_1 = __importDefault(require("../controllers/institution-wallet.controller"));
+const institution_reports_controller_1 = __importDefault(require("../controllers/institution-reports.controller"));
 const router = (0, express_1.Router)();
 const institutionOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('INSTITUTION')];
 router.post('/students', institutionOnly, institution_students_controller_1.default.createStudent);
@@ -22,4 +23,7 @@ router.post('/certificates/:certificateId/blockchain-record', institutionOnly, i
 router.get('/certificates/:certificateId/blockchain-status', institutionOnly, institution_certificates_controller_1.default.getBlockchainStatus);
 router.put('/wallet', institutionOnly, institution_wallet_controller_1.default.setWalletAddress);
 router.get('/me/issuer-status', institutionOnly, institution_wallet_controller_1.default.getIssuerStatus);
+router.get('/verifications', institutionOnly, institution_reports_controller_1.default.listVerifications);
+router.get('/reports/summary', institutionOnly, institution_reports_controller_1.default.getSummary);
+router.get('/reports/certificates.csv', institutionOnly, institution_reports_controller_1.default.exportCertificatesCsv);
 exports.default = router;
