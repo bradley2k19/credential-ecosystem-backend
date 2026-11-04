@@ -15,6 +15,7 @@ const db_1 = __importDefault(require("../config/db"));
 const certificateHash_1 = require("../utils/certificateHash");
 const blockchain_1 = require("../config/blockchain");
 const onChain_1 = require("../utils/onChain");
+const snapshot_1 = require("../templates/snapshot");
 const certificateFields = {
     id: true,
     certificateUid: true,
@@ -33,6 +34,7 @@ const certificateFields = {
     revokedAt: true,
     createdAt: true,
     updatedAt: true,
+    templateId: true,
     student: {
         select: {
             fullName: true,
@@ -63,7 +65,7 @@ function isUniqueConstraintError(error) {
     return error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 async function issueCertificate(req, res) {
-    const { studentId, certificateType, programName, classification, issueDate, graduationDate } = req.body;
+    const { studentId, certificateType, programName, classification, issueDate, graduationDate, templateId } = req.body;
     if (!studentId || !certificateType || !programName || !issueDate) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -76,38 +78,48 @@ async function issueCertificate(req, res) {
     if (!institutionId)
         return res.status(403).json({ error: 'Institution profile not found' });
     try {
-        const student = await db_1.default.student.findFirst({
-            where: { id: studentId, institutionId },
-            select: { id: true }
-        });
-        if (!student)
-            return res.status(404).json({ error: 'Student not found' });
-        const certificateUid = crypto_1.default.randomUUID();
-        const certificateHash = (0, certificateHash_1.generateCertificateHash)({
-            studentId,
-            institutionId,
-            certificateType,
-            programName,
-            classification: classification ?? null,
-            issueDate: parsedIssueDate,
-            certificateUid
-        });
-        const certificate = await db_1.default.certificate.create({
-            data: {
-                certificateUid,
+        const result = await db_1.default.$transaction(async (tx) => {
+            const student = await tx.student.findFirst({
+                where: { id: studentId, institutionId },
+                select: { id: true }
+            });
+            if (!student)
+                return { status: 404, body: { error: 'Student not found' } };
+            // Presentation only: the template and snapshot never feed into the certificate hash below.
+            const render = await (0, snapshot_1.buildRenderSnapshot)(tx, institutionId, templateId);
+            if (!render.ok)
+                return { status: 400, body: { error: render.error } };
+            const certificateUid = crypto_1.default.randomUUID();
+            const certificateHash = (0, certificateHash_1.generateCertificateHash)({
                 studentId,
                 institutionId,
                 certificateType,
                 programName,
                 classification: classification ?? null,
                 issueDate: parsedIssueDate,
-                graduationDate: parsedGraduationDate,
-                certificateHash,
-                status: client_1.CertificateStatus.ACTIVE
-            },
-            select: certificateFields
+                certificateUid
+            });
+            const certificate = await tx.certificate.create({
+                data: {
+                    certificateUid,
+                    studentId,
+                    institutionId,
+                    certificateType,
+                    programName,
+                    classification: classification ?? null,
+                    issueDate: parsedIssueDate,
+                    graduationDate: parsedGraduationDate,
+                    certificateHash,
+                    status: client_1.CertificateStatus.ACTIVE,
+                    // Frozen here and never written again.
+                    renderSnapshot: render.snapshot,
+                    templateId: render.templateId
+                },
+                select: certificateFields
+            });
+            return { status: 201, body: { ...certificate, templateName: render.snapshot.template.name } };
         });
-        return res.status(201).json(certificate);
+        return res.status(result.status).json(result.body);
     }
     catch (error) {
         if (isUniqueConstraintError(error))
@@ -137,6 +149,7 @@ async function listCertificates(req, res) {
                 where,
                 select: {
                     ...certificateFields,
+                    renderSnapshot: true,
                     blockchainTransactions: onChain_1.onChainTransactionsSelect
                 },
                 orderBy: { createdAt: 'desc' },
@@ -145,8 +158,10 @@ async function listCertificates(req, res) {
             }),
             db_1.default.certificate.count({ where })
         ]);
-        const certificates = rows.map(({ blockchainTransactions, ...certificate }) => ({
+        // The list carries only the frozen template name, never the full snapshot.
+        const certificates = rows.map(({ blockchainTransactions, renderSnapshot, ...certificate }) => ({
             ...certificate,
+            templateName: (0, snapshot_1.snapshotTemplateName)(renderSnapshot),
             onChain: (0, onChain_1.summariseOnChain)(blockchainTransactions)
         }));
         return res.json({ certificates, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
@@ -163,11 +178,11 @@ async function getCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: certificateFields
+            select: { ...certificateFields, renderSnapshot: true }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
-        return res.json(certificate);
+        return res.json({ ...certificate, templateName: (0, snapshot_1.snapshotTemplateName)(certificate.renderSnapshot) });
     }
     catch (error) {
         console.error('Database error while fetching certificate:', error instanceof Error ? error.message : error);

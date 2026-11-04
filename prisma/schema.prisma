@@ -102,6 +102,27 @@ model Institution {
   certificates Certificate[]
   assets       InstitutionAsset[] @relation("InstitutionAssets")
   signatories  Signatory[]
+  templates    CertificateTemplate[]
+}
+
+// Design-only certificate layout (no images, URLs or asset ids). Never deleted; archived instead.
+model CertificateTemplate {
+  id            String      @id @default(uuid())
+  institution   Institution @relation(fields: [institutionId], references: [id])
+  institutionId String
+  name          String
+  // Lower-cased, trimmed name: lets the database enforce case-insensitive uniqueness per institution.
+  nameKey       String
+  design        Json
+  isDefault     Boolean     @default(false)
+  isArchived    Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  certificates Certificate[]
+
+  @@unique([institutionId, nameKey])
+  @@index([institutionId, isArchived])
 }
 
 // Uploaded images are immutable: never updated or deleted, because issued certificates will reference them.
@@ -209,6 +230,10 @@ model Certificate {
   revokedAt       DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  // Frozen at issuance (design + branding + signatories) and never written again. Null for older certificates.
+  renderSnapshot  Json?
+  templateId      String?
+  template        CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
 
   blockchainTransactions BlockchainTransaction[]
   verifications          CertificateVerification[]

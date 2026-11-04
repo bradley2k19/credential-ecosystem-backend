@@ -10,6 +10,7 @@ const institution_certificates_controller_1 = __importDefault(require("../contro
 const institution_wallet_controller_1 = __importDefault(require("../controllers/institution-wallet.controller"));
 const institution_reports_controller_1 = __importDefault(require("../controllers/institution-reports.controller"));
 const institution_profile_controller_1 = __importDefault(require("../controllers/institution-profile.controller"));
+const institution_templates_controller_1 = __importDefault(require("../controllers/institution-templates.controller"));
 const router = (0, express_1.Router)();
 const institutionOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('INSTITUTION')];
 router.post('/students', institutionOnly, institution_students_controller_1.default.createStudent);
@@ -38,6 +39,15 @@ router.patch('/me/signatories/:signatoryId', institutionOnly, institution_profil
 router.delete('/me/signatories/:signatoryId', institutionOnly, institution_profile_controller_1.default.archiveSignatory);
 router.put('/me/signatories/:signatoryId/signature', institutionOnly, institution_profile_controller_1.default.setSignature);
 router.delete('/me/signatories/:signatoryId/signature', institutionOnly, institution_profile_controller_1.default.removeSignature);
+router.get('/me/templates', institutionOnly, institution_templates_controller_1.default.listTemplates);
+router.post('/me/templates', institutionOnly, institution_templates_controller_1.default.createTemplate);
+// Registered before '/me/templates/:templateId' so "default" is never read as an id.
+router.put('/me/templates/default', institutionOnly, institution_templates_controller_1.default.setDefaultTemplate);
+router.get('/me/templates/:templateId', institutionOnly, institution_templates_controller_1.default.getTemplate);
+router.put('/me/templates/:templateId', institutionOnly, institution_templates_controller_1.default.updateTemplate);
+router.post('/me/templates/:templateId/clone', institutionOnly, institution_templates_controller_1.default.cloneTemplate);
+router.post('/me/templates/:templateId/archive', institutionOnly, institution_templates_controller_1.default.archiveTemplate);
+router.post('/me/templates/:templateId/unarchive', institutionOnly, institution_templates_controller_1.default.unarchiveTemplate);
 router.get('/verifications', institutionOnly, institution_reports_controller_1.default.listVerifications);
 router.get('/reports/summary', institutionOnly, institution_reports_controller_1.default.getSummary);
 router.get('/reports/certificates.csv', institutionOnly, institution_reports_controller_1.default.exportCertificatesCsv);

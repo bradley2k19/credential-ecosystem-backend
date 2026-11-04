@@ -5,6 +5,7 @@ import institutionCertificatesController from '../controllers/institution-certif
 import institutionWalletController from '../controllers/institution-wallet.controller';
 import institutionReportsController from '../controllers/institution-reports.controller';
 import institutionProfileController from '../controllers/institution-profile.controller';
+import institutionTemplatesController from '../controllers/institution-templates.controller';
 
 const router = Router();
 
@@ -36,6 +37,15 @@ router.patch('/me/signatories/:signatoryId', institutionOnly, institutionProfile
 router.delete('/me/signatories/:signatoryId', institutionOnly, institutionProfileController.archiveSignatory);
 router.put('/me/signatories/:signatoryId/signature', institutionOnly, institutionProfileController.setSignature);
 router.delete('/me/signatories/:signatoryId/signature', institutionOnly, institutionProfileController.removeSignature);
+router.get('/me/templates', institutionOnly, institutionTemplatesController.listTemplates);
+router.post('/me/templates', institutionOnly, institutionTemplatesController.createTemplate);
+// Registered before '/me/templates/:templateId' so "default" is never read as an id.
+router.put('/me/templates/default', institutionOnly, institutionTemplatesController.setDefaultTemplate);
+router.get('/me/templates/:templateId', institutionOnly, institutionTemplatesController.getTemplate);
+router.put('/me/templates/:templateId', institutionOnly, institutionTemplatesController.updateTemplate);
+router.post('/me/templates/:templateId/clone', institutionOnly, institutionTemplatesController.cloneTemplate);
+router.post('/me/templates/:templateId/archive', institutionOnly, institutionTemplatesController.archiveTemplate);
+router.post('/me/templates/:templateId/unarchive', institutionOnly, institutionTemplatesController.unarchiveTemplate);
 router.get('/verifications', institutionOnly, institutionReportsController.listVerifications);
 router.get('/reports/summary', institutionOnly, institutionReportsController.getSummary);
 router.get('/reports/certificates.csv', institutionOnly, institutionReportsController.exportCertificatesCsv);

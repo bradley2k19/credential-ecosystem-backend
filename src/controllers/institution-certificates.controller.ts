@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { generateCertificateHash } from '../utils/certificateHash';
 import { blockchainProvider } from '../config/blockchain';
 import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
+import { buildRenderSnapshot, snapshotTemplateName } from '../templates/snapshot';
 
 const certificateFields = {
   id: true,
@@ -25,6 +26,7 @@ const certificateFields = {
   revokedAt: true,
   createdAt: true,
   updatedAt: true,
+  templateId: true,
   student: {
     select: {
       fullName: true,
@@ -59,7 +61,7 @@ function isUniqueConstraintError(error: unknown) {
 }
 
 export async function issueCertificate(req: AuthRequest, res: Response) {
-  const { studentId, certificateType, programName, classification, issueDate, graduationDate } = req.body;
+  const { studentId, certificateType, programName, classification, issueDate, graduationDate, templateId } = req.body;
   if (!studentId || !certificateType || !programName || !issueDate) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -74,39 +76,49 @@ export async function issueCertificate(req: AuthRequest, res: Response) {
   if (!institutionId) return res.status(403).json({ error: 'Institution profile not found' });
 
   try {
-    const student = await prisma.student.findFirst({
-      where: { id: studentId, institutionId },
-      select: { id: true }
-    });
-    if (!student) return res.status(404).json({ error: 'Student not found' });
+    const result = await prisma.$transaction(async (tx) => {
+      const student = await tx.student.findFirst({
+        where: { id: studentId, institutionId },
+        select: { id: true }
+      });
+      if (!student) return { status: 404, body: { error: 'Student not found' } };
 
-    const certificateUid = crypto.randomUUID();
-    const certificateHash = generateCertificateHash({
-      studentId,
-      institutionId,
-      certificateType,
-      programName,
-      classification: classification ?? null,
-      issueDate: parsedIssueDate,
-      certificateUid
-    });
+      // Presentation only: the template and snapshot never feed into the certificate hash below.
+      const render = await buildRenderSnapshot(tx, institutionId, templateId);
+      if (!render.ok) return { status: 400, body: { error: render.error } };
 
-    const certificate = await prisma.certificate.create({
-      data: {
-        certificateUid,
+      const certificateUid = crypto.randomUUID();
+      const certificateHash = generateCertificateHash({
         studentId,
         institutionId,
         certificateType,
         programName,
         classification: classification ?? null,
         issueDate: parsedIssueDate,
-        graduationDate: parsedGraduationDate,
-        certificateHash,
-        status: CertificateStatus.ACTIVE
-      },
-      select: certificateFields
+        certificateUid
+      });
+
+      const certificate = await tx.certificate.create({
+        data: {
+          certificateUid,
+          studentId,
+          institutionId,
+          certificateType,
+          programName,
+          classification: classification ?? null,
+          issueDate: parsedIssueDate,
+          graduationDate: parsedGraduationDate,
+          certificateHash,
+          status: CertificateStatus.ACTIVE,
+          // Frozen here and never written again.
+          renderSnapshot: render.snapshot as unknown as Prisma.InputJsonObject,
+          templateId: render.templateId
+        },
+        select: certificateFields
+      });
+      return { status: 201, body: { ...certificate, templateName: render.snapshot.template.name } };
     });
-    return res.status(201).json(certificate);
+    return res.status(result.status).json(result.body);
   } catch (error) {
     if (isUniqueConstraintError(error)) return res.status(409).json({ error: 'Certificate identifier already exists' });
     console.error('Database error while issuing certificate:', error instanceof Error ? error.message : error);
@@ -137,6 +149,7 @@ export async function listCertificates(req: AuthRequest, res: Response) {
         where,
         select: {
           ...certificateFields,
+          renderSnapshot: true,
           blockchainTransactions: onChainTransactionsSelect
         },
         orderBy: { createdAt: 'desc' },
@@ -146,8 +159,10 @@ export async function listCertificates(req: AuthRequest, res: Response) {
       prisma.certificate.count({ where })
     ]);
 
-    const certificates = rows.map(({ blockchainTransactions, ...certificate }) => ({
+    // The list carries only the frozen template name, never the full snapshot.
+    const certificates = rows.map(({ blockchainTransactions, renderSnapshot, ...certificate }) => ({
       ...certificate,
+      templateName: snapshotTemplateName(renderSnapshot),
       onChain: summariseOnChain(blockchainTransactions)
     }));
 
@@ -165,10 +180,10 @@ export async function getCertificate(req: AuthRequest, res: Response) {
   try {
     const certificate = await prisma.certificate.findFirst({
       where: { id: req.params.certificateId, institutionId },
-      select: certificateFields
+      select: { ...certificateFields, renderSnapshot: true }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-    return res.json(certificate);
+    return res.json({ ...certificate, templateName: snapshotTemplateName(certificate.renderSnapshot) });
   } catch (error) {
     console.error('Database error while fetching certificate:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Database unreachable' });

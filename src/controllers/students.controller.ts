@@ -115,10 +115,12 @@ export async function getCertificate(req: AuthRequest, res: Response) {
     // Scoping by studentId makes another student's certificate indistinguishable from a missing one.
     const certificate = await prisma.certificate.findFirst({
       where: { id: req.params.certificateId, studentId },
-      select: studentCertificateFields
+      select: { ...studentCertificateFields, renderSnapshot: true }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-    return res.json(toStudentCertificate(certificate));
+    // Only the single-certificate response carries the frozen snapshot (null for older certificates).
+    const { renderSnapshot, ...row } = certificate;
+    return res.json({ ...toStudentCertificate(row), renderSnapshot });
   } catch (error) {
     console.error('Database error while fetching student certificate:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Database unreachable' });

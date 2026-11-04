@@ -23,7 +23,8 @@
     "ethers": "^6.17.0",
     "express": "^5.2.1",
     "image-size": "^2.0.4",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",

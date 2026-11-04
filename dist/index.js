@@ -14,6 +14,7 @@ const verify_routes_1 = __importDefault(require("./routes/verify.routes"));
 const employers_routes_1 = __importDefault(require("./routes/employers.routes"));
 const students_routes_1 = __importDefault(require("./routes/students.routes"));
 const assets_routes_1 = __importDefault(require("./routes/assets.routes"));
+const templates_routes_1 = __importDefault(require("./routes/templates.routes"));
 const app = (0, express_1.default)();
 // CORS runs first so every response carries its headers, including body-size errors from the parsers below
 // and the public asset images, which the frontend reads when capturing a certificate.
@@ -43,6 +44,7 @@ app.use('/api/verify', verify_routes_1.default);
 app.use('/api/employers', employers_routes_1.default);
 app.use('/api/students', students_routes_1.default);
 app.use('/api/assets', assets_routes_1.default);
+app.use('/api/templates', templates_routes_1.default);
 // Centralized error handling
 app.use(error_middleware_1.default);
 exports.default = app;
