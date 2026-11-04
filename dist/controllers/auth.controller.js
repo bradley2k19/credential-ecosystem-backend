@@ -130,7 +130,9 @@ async function login(req, res) {
         const ok = await (0, password_1.comparePassword)(password, user.passwordHash);
         if (!ok)
             return res.status(401).json(generic);
-        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, env_1.default.JWT_SECRET, { expiresIn: '24h' });
+        // Administrator sessions are deliberately short-lived.
+        const expiresIn = user.role === 'ADMIN' ? '2h' : '24h';
+        const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, env_1.default.JWT_SECRET, { expiresIn });
         return res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
     }
     catch (err) {

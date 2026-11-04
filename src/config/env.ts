@@ -8,8 +8,7 @@ const required = [
   'FRONTEND_URL',
   'BLOCKCHAIN_RPC_URL',
   'CONTRACT_ADDRESS',
-  'ADMIN_PRIVATE_KEY',
-  'ADMIN_SECRET_KEY'
+  'ADMIN_PRIVATE_KEY'
 ] as const;
 
 type RequiredEnv = typeof required[number];
@@ -36,7 +35,6 @@ export const env = {
   BLOCKCHAIN_RPC_URL: process.env.BLOCKCHAIN_RPC_URL as string,
   CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS as string,
   ADMIN_PRIVATE_KEY: process.env.ADMIN_PRIVATE_KEY as string,
-  ADMIN_SECRET_KEY: process.env.ADMIN_SECRET_KEY as string,
   PORT: process.env.PORT ? Number(process.env.PORT) : 3001,
   NODE_ENV: process.env.NODE_ENV || 'development'
 };

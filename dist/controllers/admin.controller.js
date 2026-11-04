@@ -3,35 +3,368 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getOverview = getOverview;
+exports.listInstitutions = listInstitutions;
+exports.setInstitutionVerification = setInstitutionVerification;
 exports.grantIssuerRole = grantIssuerRole;
+exports.revokeIssuerRole = revokeIssuerRole;
+exports.listAuditLogs = listAuditLogs;
+const ethers_1 = require("ethers");
+const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const blockchain_1 = require("../config/blockchain");
-async function grantIssuerRole(req, res) {
+// keccak256("ISSUER_ROLE"), the contract's constant; computed locally to save an RPC round trip.
+const ISSUER_ROLE = (0, ethers_1.id)('ISSUER_ROLE');
+// One slow RPC read must never hold up a whole response.
+const ROLE_READ_TIMEOUT_MS = 4000;
+// Serverless functions have a short time limit, so stop waiting for mining well before it.
+const MINE_WAIT_MS = 8000;
+const AUDIT_ACTIONS = ['INSTITUTION_VERIFIED', 'INSTITUTION_UNVERIFIED', 'ISSUER_GRANTED', 'ISSUER_REVOKED'];
+const institutionSummaryFields = {
+    id: true,
+    name: true,
+    registrationNumber: true,
+    contactEmail: true,
+    isVerified: true,
+    walletAddress: true,
+    createdAt: true,
+    _count: { select: { certificates: true } }
+};
+function parsePage(query, maxLimit) {
+    const page = Math.max(Number.parseInt(String(query.page || '1'), 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(query.limit || '20'), 10) || 20, 1), maxLimit);
+    return { page, limit };
+}
+function checksumAddress(address) {
+    if (!address)
+        return null;
     try {
-        const institution = await db_1.default.institution.findUnique({
-            where: { id: req.params.institutionId },
-            select: { id: true, walletAddress: true, isVerified: true }
-        });
-        if (!institution)
-            return res.status(404).json({ error: 'Institution not found' });
-        if (!institution.walletAddress)
-            return res.status(400).json({ error: 'Institution has no wallet address' });
-        if (!institution.isVerified)
-            return res.status(400).json({ error: 'Institution must be verified before receiving issuer access' });
-        const issuerRole = await blockchain_1.adminCertificateRegistry.ISSUER_ROLE();
-        const transaction = await blockchain_1.adminCertificateRegistry.grantRole(issuerRole, institution.walletAddress, await (0, blockchain_1.getFeeOverrides)());
-        const receipt = await transaction.wait();
+        return (0, ethers_1.getAddress)(address);
+    }
+    catch {
+        return null;
+    }
+}
+function withTimeout(promise, ms) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+/** The live on-chain role: true or false, or null when there is no wallet or the chain could not be read in time. */
+async function readIsIssuer(walletAddress) {
+    if (!walletAddress)
+        return null;
+    try {
+        return Boolean(await withTimeout(blockchain_1.certificateRegistry.isIssuer(walletAddress), ROLE_READ_TIMEOUT_MS));
+    }
+    catch (error) {
+        console.error('Blockchain read error while checking issuer role:', error instanceof Error ? error.message : error);
+        return null;
+    }
+}
+function toInstitutionSummary(row, isIssuer) {
+    return {
+        id: row.id,
+        name: row.name,
+        registrationNumber: row.registrationNumber,
+        contactEmail: row.contactEmail,
+        isVerified: row.isVerified,
+        walletAddress: checksumAddress(row.walletAddress),
+        createdAt: row.createdAt,
+        certificatesIssued: row._count.certificates,
+        isIssuer
+    };
+}
+function auditEntry(userId, action, institutionId, details) {
+    return { userId, action, entityType: 'institution', entityId: institutionId, details };
+}
+/** Records an on-chain admin action. A logging failure is reported but never changes the response. */
+async function writeAuditLog(userId, action, institutionId, details) {
+    try {
+        await db_1.default.auditLog.create({ data: auditEntry(userId, action, institutionId, details) });
+    }
+    catch (error) {
+        console.error('Failed to write audit log entry:', error instanceof Error ? error.message : error);
+    }
+}
+// Gas estimation failures carry the revert data but ethers leaves custom errors undecoded there.
+function customErrorName(data) {
+    if (!data)
+        return undefined;
+    try {
+        return blockchain_1.certificateRegistry.interface.parseError(data)?.name;
+    }
+    catch {
+        return undefined;
+    }
+}
+/** Maps blockchain errors to short client messages. Raw RPC text is only ever logged, never returned. */
+function describeChainError(error) {
+    let text = error instanceof Error ? error.message : String(error);
+    try {
+        text += ` ${JSON.stringify(error) ?? ''}`;
+    }
+    catch {
+        // Circular error objects fall back to the message alone.
+    }
+    text = text.toLowerCase();
+    if ((0, ethers_1.isError)(error, 'INSUFFICIENT_FUNDS') || text.includes('insufficient funds')) {
+        return { status: 503, message: 'The administrator wallet does not have enough POL to pay for this transaction.' };
+    }
+    if (text.includes('gas price below minimum') || text.includes('gas tip cap') || text.includes('underpriced') || text.includes('fee too low')) {
+        return { status: 503, message: 'The network rejected the transaction fee. Please try again.' };
+    }
+    if ((0, ethers_1.isError)(error, 'CALL_EXCEPTION')) {
+        if (error.reason?.includes('Admin cannot also be issuer')) {
+            return { status: 422, message: 'This wallet is the contract administrator and cannot also hold the issuer role.' };
+        }
+        if ((error.revert?.name ?? customErrorName(error.data)) === 'AccessControlUnauthorizedAccount') {
+            return { status: 422, message: 'The administrator wallet is not authorised to manage issuer roles on this contract.' };
+        }
+        return { status: 422, message: 'The contract rejected this role change.' };
+    }
+    return { status: 503, message: 'The blockchain network could not be reached. Please try again.' };
+}
+async function getOverview(req, res) {
+    try {
+        const [institutions, verifiedInstitutions, students, certificates, activeCertificates, revokedCertificates, verifications] = await Promise.all([
+            db_1.default.institution.count(),
+            db_1.default.institution.count({ where: { isVerified: true } }),
+            db_1.default.student.count(),
+            db_1.default.certificate.count(),
+            db_1.default.certificate.count({ where: { status: client_1.CertificateStatus.ACTIVE } }),
+            db_1.default.certificate.count({ where: { status: client_1.CertificateStatus.REVOKED } }),
+            db_1.default.certificateVerification.count()
+        ]);
         return res.json({
-            institutionId: institution.id,
-            walletAddress: institution.walletAddress,
-            transactionHash: receipt.hash,
-            confirmed: receipt.status === 1,
-            blockNumber: receipt.blockNumber
+            institutions: { total: institutions, verified: verifiedInstitutions, awaitingVerification: institutions - verifiedInstitutions },
+            students: { total: students },
+            certificates: { total: certificates, active: activeCertificates, revoked: revokedCertificates },
+            verifications: { total: verifications }
         });
     }
     catch (error) {
-        console.error('Blockchain error while granting issuer role:', error instanceof Error ? error.message : error);
-        return res.status(503).json({ error: 'Unable to grant issuer role' });
+        console.error('Database error while building admin overview:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable' });
     }
 }
-exports.default = { grantIssuerRole };
+async function listInstitutions(req, res) {
+    const { page, limit } = parsePage(req.query, 50);
+    const verified = req.query.verified;
+    if (verified !== undefined && verified !== 'true' && verified !== 'false') {
+        return res.status(400).json({ error: 'verified must be true or false' });
+    }
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
+    const where = {
+        ...(verified !== undefined ? { isVerified: verified === 'true' } : {}),
+        ...(search
+            ? {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { registrationNumber: { contains: search, mode: 'insensitive' } }
+                ]
+            }
+            : {})
+    };
+    try {
+        const [rows, total] = await db_1.default.$transaction([
+            db_1.default.institution.findMany({
+                where,
+                select: institutionSummaryFields,
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit
+            }),
+            db_1.default.institution.count({ where })
+        ]);
+        // Only the institutions on this page, read in parallel, each with its own timeout.
+        const roles = await Promise.all(rows.map((row) => readIsIssuer(checksumAddress(row.walletAddress))));
+        const institutions = rows.map((row, index) => toInstitutionSummary(row, roles[index]));
+        return res.json({ institutions, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+    catch (error) {
+        console.error('Database error while listing institutions:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable' });
+    }
+}
+async function setInstitutionVerification(req, res) {
+    const { isVerified } = req.body ?? {};
+    if (typeof isVerified !== 'boolean')
+        return res.status(400).json({ error: 'isVerified must be true or false' });
+    const adminUserId = req.user.id;
+    try {
+        const existing = await db_1.default.institution.findUnique({
+            where: { id: req.params.institutionId },
+            select: { id: true, name: true, isVerified: true }
+        });
+        if (!existing)
+            return res.status(404).json({ error: 'Institution not found' });
+        // Unverifying only changes this flag; the on-chain issuer role is a separate, explicit action.
+        const [updated] = await db_1.default.$transaction([
+            db_1.default.institution.update({ where: { id: existing.id }, data: { isVerified }, select: institutionSummaryFields }),
+            db_1.default.auditLog.create({
+                data: auditEntry(adminUserId, isVerified ? 'INSTITUTION_VERIFIED' : 'INSTITUTION_UNVERIFIED', existing.id, {
+                    institutionName: existing.name,
+                    previousIsVerified: existing.isVerified
+                })
+            })
+        ]);
+        return res.json(toInstitutionSummary(updated, await readIsIssuer(checksumAddress(updated.walletAddress))));
+    }
+    catch (error) {
+        console.error('Database error while updating institution verification:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable or operation failed' });
+    }
+}
+async function changeIssuerRole(req, res, action) {
+    const adminUserId = req.user.id;
+    let institution;
+    try {
+        institution = await db_1.default.institution.findUnique({
+            where: { id: req.params.institutionId },
+            select: { id: true, name: true, walletAddress: true, isVerified: true }
+        });
+    }
+    catch (error) {
+        console.error('Database error while loading institution:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable' });
+    }
+    if (!institution)
+        return res.status(404).json({ error: 'Institution not found' });
+    if (!institution.walletAddress)
+        return res.status(400).json({ error: 'Institution has no wallet address' });
+    if (action === 'grant' && !institution.isVerified) {
+        return res.status(400).json({ error: 'Institution must be verified before receiving issuer access' });
+    }
+    const walletAddress = checksumAddress(institution.walletAddress);
+    if (!walletAddress)
+        return res.status(400).json({ error: 'The institution has an invalid wallet address on file' });
+    let holdsRole;
+    try {
+        holdsRole = Boolean(await withTimeout(blockchain_1.certificateRegistry.isIssuer(walletAddress), ROLE_READ_TIMEOUT_MS));
+    }
+    catch (error) {
+        console.error('Blockchain read error while checking issuer role:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'The blockchain network could not be reached. Please try again.' });
+    }
+    if (action === 'grant' && holdsRole) {
+        return res.status(409).json({ error: "This institution's wallet already holds the issuer role." });
+    }
+    // revokeRole on a wallet without the role succeeds silently on-chain, so refuse it here instead.
+    if (action === 'revoke' && !holdsRole) {
+        return res.status(409).json({ error: "This institution's wallet does not currently hold the issuer role." });
+    }
+    const auditAction = action === 'grant' ? 'ISSUER_GRANTED' : 'ISSUER_REVOKED';
+    const baseDetails = { institutionName: institution.name, walletAddress };
+    let transactionHash = null;
+    try {
+        const feeOverrides = await (0, blockchain_1.getFeeOverrides)();
+        const transaction = action === 'grant'
+            ? await blockchain_1.adminCertificateRegistry.grantRole(ISSUER_ROLE, walletAddress, feeOverrides)
+            : await blockchain_1.adminCertificateRegistry.revokeRole(ISSUER_ROLE, walletAddress, feeOverrides);
+        transactionHash = transaction.hash;
+        let receipt;
+        try {
+            receipt = await transaction.wait(1, MINE_WAIT_MS);
+        }
+        catch (error) {
+            if (!(0, ethers_1.isError)(error, 'TIMEOUT'))
+                throw error;
+            await writeAuditLog(adminUserId, auditAction, institution.id, { ...baseDetails, transactionHash, outcome: 'PENDING' });
+            return res.status(202).json({
+                institutionId: institution.id,
+                walletAddress,
+                transactionHash,
+                status: 'PENDING',
+                message: 'The transaction was submitted but is not mined yet. Refresh the institution list shortly to see the final state.'
+            });
+        }
+        const blockNumber = receipt?.blockNumber ?? null;
+        await writeAuditLog(adminUserId, auditAction, institution.id, { ...baseDetails, transactionHash, outcome: 'CONFIRMED', blockNumber });
+        return res.json({
+            institutionId: institution.id,
+            walletAddress,
+            transactionHash,
+            status: 'CONFIRMED',
+            blockNumber,
+            isIssuer: action === 'grant'
+        });
+    }
+    catch (error) {
+        console.error(`Blockchain error while ${action === 'grant' ? 'granting' : 'revoking'} issuer role:`, error instanceof Error ? error.message : error);
+        const failure = describeChainError(error);
+        await writeAuditLog(adminUserId, auditAction, institution.id, {
+            ...baseDetails,
+            transactionHash,
+            outcome: 'FAILED',
+            failure: failure.message
+        });
+        return res.status(failure.status).json({ error: failure.message, ...(transactionHash ? { transactionHash } : {}) });
+    }
+}
+function grantIssuerRole(req, res) {
+    return changeIssuerRole(req, res, 'grant');
+}
+// Certificates the institution issued earlier stay on-chain, so they remain valid and verifiable.
+function revokeIssuerRole(req, res) {
+    return changeIssuerRole(req, res, 'revoke');
+}
+async function listAuditLogs(req, res) {
+    const { page, limit } = parsePage(req.query, 100);
+    const actionValue = typeof req.query.action === 'string' && req.query.action ? req.query.action.toUpperCase() : undefined;
+    if (actionValue && !AUDIT_ACTIONS.includes(actionValue)) {
+        return res.status(400).json({ error: `action must be one of ${AUDIT_ACTIONS.join(', ')}` });
+    }
+    const where = { action: actionValue ?? { in: [...AUDIT_ACTIONS] } };
+    try {
+        const [rows, total] = await db_1.default.$transaction([
+            db_1.default.auditLog.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit,
+                select: {
+                    id: true,
+                    createdAt: true,
+                    action: true,
+                    entityId: true,
+                    details: true,
+                    user: { select: { email: true } }
+                }
+            }),
+            db_1.default.auditLog.count({ where })
+        ]);
+        const institutionIds = [...new Set(rows.map((row) => row.entityId).filter((value) => Boolean(value)))];
+        const institutions = institutionIds.length
+            ? await db_1.default.institution.findMany({ where: { id: { in: institutionIds } }, select: { id: true, name: true } })
+            : [];
+        const namesById = new Map(institutions.map((institution) => [institution.id, institution.name]));
+        const auditLogs = rows.map((row) => {
+            const details = row.details && typeof row.details === 'object' && !Array.isArray(row.details) ? row.details : {};
+            const recordedName = typeof details.institutionName === 'string' ? details.institutionName : null;
+            return {
+                id: row.id,
+                createdAt: row.createdAt,
+                adminEmail: row.user?.email ?? null,
+                action: row.action,
+                institution: { id: row.entityId, name: (row.entityId && namesById.get(row.entityId)) || recordedName },
+                details
+            };
+        });
+        return res.json({ auditLogs, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+    catch (error) {
+        console.error('Database error while listing audit logs:', error instanceof Error ? error.message : error);
+        return res.status(503).json({ error: 'Database unreachable' });
+    }
+}
+exports.default = {
+    getOverview,
+    listInstitutions,
+    setInstitutionVerification,
+    grantIssuerRole,
+    revokeIssuerRole,
+    listAuditLogs
+};

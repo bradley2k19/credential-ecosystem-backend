@@ -5,6 +5,9 @@ const certificateRegistryAbi = [
   'function ISSUER_ROLE() view returns (bytes32)',
   'function isIssuer(address account) view returns (bool)',
   'function grantRole(bytes32 role, address account)',
+  'function revokeRole(bytes32 role, address account)',
+  // OpenZeppelin AccessControl custom error, listed so contract rejections can be decoded.
+  'error AccessControlUnauthorizedAccount(address account, bytes32 neededRole)',
   'function getCertificate(string certificateUid) view returns (bytes32 certificateHash, address issuer, bool revoked, uint256 issuedAt)',
   'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)'
 ];
@@ -35,7 +38,7 @@ export async function getFeeOverrides() {
 
 const adminWallet = new Wallet(env.ADMIN_PRIVATE_KEY, blockchainProvider);
 
-// This signer is intentionally used only by the admin issuer-role grant endpoint.
+// This signer is intentionally used only by the admin issuer-role endpoints (admin.controller.ts).
 export const adminCertificateRegistry = new Contract(
   env.CONTRACT_ADDRESS,
   certificateRegistryAbi,

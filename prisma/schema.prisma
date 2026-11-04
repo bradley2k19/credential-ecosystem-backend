@@ -11,6 +11,8 @@ enum UserRole {
   INSTITUTION
   STUDENT
   EMPLOYER
+  // Platform administrator. No profile table: the User row is the whole account.
+  ADMIN
 }
 
 enum CertificateStatus {
