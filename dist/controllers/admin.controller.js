@@ -13,6 +13,7 @@ const ethers_1 = require("ethers");
 const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const blockchain_1 = require("../config/blockchain");
+const image_1 = require("../utils/image");
 // keccak256("ISSUER_ROLE"), the contract's constant; computed locally to save an RPC round trip.
 const ISSUER_ROLE = (0, ethers_1.id)('ISSUER_ROLE');
 // One slow RPC read must never hold up a whole response.
@@ -27,6 +28,7 @@ const institutionSummaryFields = {
     contactEmail: true,
     isVerified: true,
     walletAddress: true,
+    logoAssetId: true,
     createdAt: true,
     _count: { select: { certificates: true } }
 };
@@ -72,6 +74,7 @@ function toInstitutionSummary(row, isIssuer) {
         contactEmail: row.contactEmail,
         isVerified: row.isVerified,
         walletAddress: checksumAddress(row.walletAddress),
+        logoUrl: (0, image_1.assetUrl)(row.logoAssetId),
         createdAt: row.createdAt,
         certificatesIssued: row._count.certificates,
         isIssuer
@@ -317,7 +320,8 @@ async function listAuditLogs(req, res) {
     if (actionValue && !AUDIT_ACTIONS.includes(actionValue)) {
         return res.status(400).json({ error: `action must be one of ${AUDIT_ACTIONS.join(', ')}` });
     }
-    const where = { action: actionValue ?? { in: [...AUDIT_ACTIONS] } };
+    // Institutions also write audit entries (profile, logo, signatories); this view lists administrator actions only.
+    const where = { action: actionValue ?? { in: [...AUDIT_ACTIONS] }, user: { role: 'ADMIN' } };
     try {
         const [rows, total] = await db_1.default.$transaction([
             db_1.default.auditLog.findMany({

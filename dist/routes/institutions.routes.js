@@ -9,6 +9,7 @@ const institution_students_controller_1 = __importDefault(require("../controller
 const institution_certificates_controller_1 = __importDefault(require("../controllers/institution-certificates.controller"));
 const institution_wallet_controller_1 = __importDefault(require("../controllers/institution-wallet.controller"));
 const institution_reports_controller_1 = __importDefault(require("../controllers/institution-reports.controller"));
+const institution_profile_controller_1 = __importDefault(require("../controllers/institution-profile.controller"));
 const router = (0, express_1.Router)();
 const institutionOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('INSTITUTION')];
 router.post('/students', institutionOnly, institution_students_controller_1.default.createStudent);
@@ -23,6 +24,20 @@ router.post('/certificates/:certificateId/blockchain-record', institutionOnly, i
 router.get('/certificates/:certificateId/blockchain-status', institutionOnly, institution_certificates_controller_1.default.getBlockchainStatus);
 router.put('/wallet', institutionOnly, institution_wallet_controller_1.default.setWalletAddress);
 router.get('/me/issuer-status', institutionOnly, institution_wallet_controller_1.default.getIssuerStatus);
+router.get('/me/profile', institutionOnly, institution_profile_controller_1.default.getProfile);
+router.patch('/me/profile', institutionOnly, institution_profile_controller_1.default.updateProfile);
+router.put('/me/logo', institutionOnly, institution_profile_controller_1.default.setLogo);
+router.delete('/me/logo', institutionOnly, institution_profile_controller_1.default.removeLogo);
+router.put('/me/seal', institutionOnly, institution_profile_controller_1.default.setSeal);
+router.delete('/me/seal', institutionOnly, institution_profile_controller_1.default.removeSeal);
+router.get('/me/signatories', institutionOnly, institution_profile_controller_1.default.listSignatories);
+router.post('/me/signatories', institutionOnly, institution_profile_controller_1.default.createSignatory);
+// Registered before '/me/signatories/:signatoryId' so "order" is never read as an id.
+router.patch('/me/signatories/order', institutionOnly, institution_profile_controller_1.default.reorderSignatories);
+router.patch('/me/signatories/:signatoryId', institutionOnly, institution_profile_controller_1.default.updateSignatory);
+router.delete('/me/signatories/:signatoryId', institutionOnly, institution_profile_controller_1.default.archiveSignatory);
+router.put('/me/signatories/:signatoryId/signature', institutionOnly, institution_profile_controller_1.default.setSignature);
+router.delete('/me/signatories/:signatoryId/signature', institutionOnly, institution_profile_controller_1.default.removeSignature);
 router.get('/verifications', institutionOnly, institution_reports_controller_1.default.listVerifications);
 router.get('/reports/summary', institutionOnly, institution_reports_controller_1.default.getSummary);
 router.get('/reports/certificates.csv', institutionOnly, institution_reports_controller_1.default.exportCertificatesCsv);

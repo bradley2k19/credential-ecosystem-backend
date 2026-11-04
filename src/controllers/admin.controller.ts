@@ -4,6 +4,7 @@ import { CertificateStatus, Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { adminCertificateRegistry, certificateRegistry, getFeeOverrides } from '../config/blockchain';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { assetUrl } from '../utils/image';
 
 // keccak256("ISSUER_ROLE"), the contract's constant; computed locally to save an RPC round trip.
 const ISSUER_ROLE = id('ISSUER_ROLE');
@@ -22,6 +23,7 @@ const institutionSummaryFields = {
   contactEmail: true,
   isVerified: true,
   walletAddress: true,
+  logoAssetId: true,
   createdAt: true,
   _count: { select: { certificates: true } }
 } as const;
@@ -70,6 +72,7 @@ function toInstitutionSummary(row: InstitutionSummaryRow, isIssuer: boolean | nu
     contactEmail: row.contactEmail,
     isVerified: row.isVerified,
     walletAddress: checksumAddress(row.walletAddress),
+    logoUrl: assetUrl(row.logoAssetId),
     createdAt: row.createdAt,
     certificatesIssued: row._count.certificates,
     isIssuer
@@ -325,7 +328,8 @@ export async function listAuditLogs(req: AuthRequest, res: Response) {
     return res.status(400).json({ error: `action must be one of ${AUDIT_ACTIONS.join(', ')}` });
   }
 
-  const where: Prisma.AuditLogWhereInput = { action: actionValue ?? { in: [...AUDIT_ACTIONS] } };
+  // Institutions also write audit entries (profile, logo, signatories); this view lists administrator actions only.
+  const where: Prisma.AuditLogWhereInput = { action: actionValue ?? { in: [...AUDIT_ACTIONS] }, user: { role: 'ADMIN' } };
 
   try {
     const [rows, total] = await prisma.$transaction([

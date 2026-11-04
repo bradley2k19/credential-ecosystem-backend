@@ -44,6 +44,12 @@ enum VerificationResult {
   PENDING_CHAIN
 }
 
+enum AssetKind {
+  LOGO
+  SEAL
+  SIGNATURE
+}
+
 enum CorrectionStatus {
   PENDING
   APPROVED
@@ -84,10 +90,57 @@ model Institution {
   walletAddress      String?  @unique
   isVerified         Boolean  @default(false)
   createdAt          DateTime @default(now())
+  // #RRGGBB accent colour for certificates.
+  brandColor         String?
+  logoAssetId        String?
+  logoAsset          InstitutionAsset? @relation("InstitutionLogo", fields: [logoAssetId], references: [id])
+  sealAssetId        String?
+  sealAsset          InstitutionAsset? @relation("InstitutionSeal", fields: [sealAssetId], references: [id])
 
   staff        InstitutionStaff[]
   students     Student[]
   certificates Certificate[]
+  assets       InstitutionAsset[] @relation("InstitutionAssets")
+  signatories  Signatory[]
+}
+
+// Uploaded images are immutable: never updated or deleted, because issued certificates will reference them.
+// Replacing a logo creates a new asset and re-points the institution at it.
+model InstitutionAsset {
+  id            String      @id @default(uuid())
+  institution   Institution @relation("InstitutionAssets", fields: [institutionId], references: [id])
+  institutionId String
+  kind          AssetKind
+  mimeType      String
+  sizeBytes     Int
+  width         Int
+  height        Int
+  data          Bytes
+  createdAt     DateTime    @default(now())
+
+  logoFor     Institution[] @relation("InstitutionLogo")
+  sealFor     Institution[] @relation("InstitutionSeal")
+  signatories Signatory[]
+
+  @@index([institutionId])
+}
+
+// Archived (isActive false) instead of deleted, so past certificates keep their signatory.
+model Signatory {
+  id                       String            @id @default(uuid())
+  institution              Institution       @relation(fields: [institutionId], references: [id])
+  institutionId            String
+  name                     String
+  title                    String
+  signatureAssetId         String?
+  signatureAsset           InstitutionAsset? @relation(fields: [signatureAssetId], references: [id])
+  displayOrder             Int
+  isActive                 Boolean           @default(true)
+  authorisationConfirmedAt DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  @@index([institutionId, isActive])
 }
 
 model InstitutionStaff {
