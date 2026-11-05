@@ -42,6 +42,9 @@ const certificateFields = {
         }
     }
 };
+// The single-certificate response feeds the renderer and never carries the hash. The issue and list responses
+// still include it, because the institution's on-chain issue step signs it.
+const { certificateHash: _certificateHash, ...singleCertificateFields } = certificateFields;
 async function getInstitutionId(userId) {
     const institution = await db_1.default.institution.findUnique({
         where: { userId },
@@ -178,11 +181,18 @@ async function getCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: { ...certificateFields, renderSnapshot: true }
+            select: { ...singleCertificateFields, renderSnapshot: true, institution: { select: { name: true } } }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
-        return res.json({ ...certificate, templateName: (0, snapshot_1.snapshotTemplateName)(certificate.renderSnapshot) });
+        const { renderSnapshot, institution, ...row } = certificate;
+        return res.json({
+            ...row,
+            institutionName: institution.name,
+            // From the stored snapshot only, so older certificates report null rather than the fallback's name.
+            templateName: (0, snapshot_1.snapshotTemplateName)(renderSnapshot),
+            ...(0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, institution.name)
+        });
     }
     catch (error) {
         console.error('Database error while fetching certificate:', error instanceof Error ? error.message : error);

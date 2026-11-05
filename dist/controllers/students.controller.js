@@ -10,6 +10,7 @@ exports.getVerificationHistory = getVerificationHistory;
 const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const onChain_1 = require("../utils/onChain");
+const snapshot_1 = require("../templates/snapshot");
 // Deliberately excludes certificateHash, studentId and institutionId.
 const studentCertificateFields = {
     id: true,
@@ -114,13 +115,22 @@ async function getCertificate(req, res) {
         // Scoping by studentId makes another student's certificate indistinguishable from a missing one.
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, studentId },
-            select: { ...studentCertificateFields, renderSnapshot: true }
+            select: {
+                ...studentCertificateFields,
+                renderSnapshot: true,
+                // The renderer's {{student_name}} and {{student_number}}; the student's own record, nothing else.
+                student: { select: { fullName: true, studentNumber: true } }
+            }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
-        // Only the single-certificate response carries the frozen snapshot (null for older certificates).
-        const { renderSnapshot, ...row } = certificate;
-        return res.json({ ...toStudentCertificate(row), renderSnapshot });
+        // Only the single-certificate response carries the snapshot: the frozen one, or the computed fallback.
+        const { renderSnapshot, student, ...row } = certificate;
+        return res.json({
+            ...toStudentCertificate(row),
+            student,
+            ...(0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, row.institution.name)
+        });
     }
     catch (error) {
         console.error('Database error while fetching student certificate:', error instanceof Error ? error.message : error);

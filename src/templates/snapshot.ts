@@ -21,6 +21,33 @@ export function snapshotTemplateName(snapshot: Prisma.JsonValue | null) {
   return typeof name === 'string' ? name : null;
 }
 
+/**
+ * For certificates issued before templates existed (stored snapshot is null): the built-in Classic design
+ * without logo, seal, watermark or signatories, since none of those were chosen at the time. Computed per
+ * request and never stored, so the stored snapshot stays null.
+ */
+export function fallbackRenderSnapshot(institutionName: string): RenderSnapshot {
+  const design = structuredClone(findStarter(FALLBACK_STARTER_ID)!.design);
+  design.header.showLogo = false;
+  design.header.showSeal = false;
+  design.background.watermark = 'none';
+  design.signatories.ids = [];
+  return {
+    snapshotVersion: 1,
+    template: { id: null, name: FALLBACK_TEMPLATE_NAME },
+    design,
+    institution: { name: institutionName, brandColor: null, logoAssetId: null, sealAssetId: null },
+    signatories: []
+  };
+}
+
+/** The stored snapshot, or the computed fallback for older certificates, with a flag saying which. */
+export function renderSnapshotForResponse(stored: Prisma.JsonValue | null, institutionName: string) {
+  return stored === null
+    ? { renderSnapshot: fallbackRenderSnapshot(institutionName) as unknown as Prisma.JsonValue, snapshotIsFallback: true }
+    : { renderSnapshot: stored, snapshotIsFallback: false };
+}
+
 export type SignatoryCheckResult = { ok: true } | { ok: false; error: string };
 
 /**

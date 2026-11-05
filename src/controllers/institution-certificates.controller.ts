@@ -6,7 +6,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { generateCertificateHash } from '../utils/certificateHash';
 import { blockchainProvider } from '../config/blockchain';
 import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
-import { buildRenderSnapshot, snapshotTemplateName } from '../templates/snapshot';
+import { buildRenderSnapshot, renderSnapshotForResponse, snapshotTemplateName } from '../templates/snapshot';
 
 const certificateFields = {
   id: true,
@@ -34,6 +34,10 @@ const certificateFields = {
     }
   }
 } as const;
+
+// The single-certificate response feeds the renderer and never carries the hash. The issue and list responses
+// still include it, because the institution's on-chain issue step signs it.
+const { certificateHash: _certificateHash, ...singleCertificateFields } = certificateFields;
 
 async function getInstitutionId(userId: string) {
   const institution = await prisma.institution.findUnique({
@@ -180,10 +184,17 @@ export async function getCertificate(req: AuthRequest, res: Response) {
   try {
     const certificate = await prisma.certificate.findFirst({
       where: { id: req.params.certificateId, institutionId },
-      select: { ...certificateFields, renderSnapshot: true }
+      select: { ...singleCertificateFields, renderSnapshot: true, institution: { select: { name: true } } }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-    return res.json({ ...certificate, templateName: snapshotTemplateName(certificate.renderSnapshot) });
+    const { renderSnapshot, institution, ...row } = certificate;
+    return res.json({
+      ...row,
+      institutionName: institution.name,
+      // From the stored snapshot only, so older certificates report null rather than the fallback's name.
+      templateName: snapshotTemplateName(renderSnapshot),
+      ...renderSnapshotForResponse(renderSnapshot, institution.name)
+    });
   } catch (error) {
     console.error('Database error while fetching certificate:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Database unreachable' });

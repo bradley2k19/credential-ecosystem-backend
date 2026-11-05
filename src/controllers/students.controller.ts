@@ -3,6 +3,7 @@ import { CertificateStatus, Prisma, VerificationResult } from '@prisma/client';
 import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
+import { renderSnapshotForResponse } from '../templates/snapshot';
 
 // Deliberately excludes certificateHash, studentId and institutionId.
 const studentCertificateFields = {
@@ -115,12 +116,21 @@ export async function getCertificate(req: AuthRequest, res: Response) {
     // Scoping by studentId makes another student's certificate indistinguishable from a missing one.
     const certificate = await prisma.certificate.findFirst({
       where: { id: req.params.certificateId, studentId },
-      select: { ...studentCertificateFields, renderSnapshot: true }
+      select: {
+        ...studentCertificateFields,
+        renderSnapshot: true,
+        // The renderer's {{student_name}} and {{student_number}}; the student's own record, nothing else.
+        student: { select: { fullName: true, studentNumber: true } }
+      }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
-    // Only the single-certificate response carries the frozen snapshot (null for older certificates).
-    const { renderSnapshot, ...row } = certificate;
-    return res.json({ ...toStudentCertificate(row), renderSnapshot });
+    // Only the single-certificate response carries the snapshot: the frozen one, or the computed fallback.
+    const { renderSnapshot, student, ...row } = certificate;
+    return res.json({
+      ...toStudentCertificate(row),
+      student,
+      ...renderSnapshotForResponse(renderSnapshot, row.institution.name)
+    });
   } catch (error) {
     console.error('Database error while fetching student certificate:', error instanceof Error ? error.message : error);
     return res.status(503).json({ error: 'Database unreachable' });

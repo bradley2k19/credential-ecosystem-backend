@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.snapshotTemplateName = snapshotTemplateName;
+exports.fallbackRenderSnapshot = fallbackRenderSnapshot;
+exports.renderSnapshotForResponse = renderSnapshotForResponse;
 exports.checkDesignSignatories = checkDesignSignatories;
 exports.buildRenderSnapshot = buildRenderSnapshot;
 const design_1 = require("./design");
@@ -14,6 +16,31 @@ function snapshotTemplateName(snapshot) {
         return null;
     const name = template.name;
     return typeof name === 'string' ? name : null;
+}
+/**
+ * For certificates issued before templates existed (stored snapshot is null): the built-in Classic design
+ * without logo, seal, watermark or signatories, since none of those were chosen at the time. Computed per
+ * request and never stored, so the stored snapshot stays null.
+ */
+function fallbackRenderSnapshot(institutionName) {
+    const design = structuredClone((0, starters_1.findStarter)(starters_1.FALLBACK_STARTER_ID).design);
+    design.header.showLogo = false;
+    design.header.showSeal = false;
+    design.background.watermark = 'none';
+    design.signatories.ids = [];
+    return {
+        snapshotVersion: 1,
+        template: { id: null, name: starters_1.FALLBACK_TEMPLATE_NAME },
+        design,
+        institution: { name: institutionName, brandColor: null, logoAssetId: null, sealAssetId: null },
+        signatories: []
+    };
+}
+/** The stored snapshot, or the computed fallback for older certificates, with a flag saying which. */
+function renderSnapshotForResponse(stored, institutionName) {
+    return stored === null
+        ? { renderSnapshot: fallbackRenderSnapshot(institutionName), snapshotIsFallback: true }
+        : { renderSnapshot: stored, snapshotIsFallback: false };
 }
 /**
  * Checks that every signatory id belongs to the institution and is active. `context` picks the wording:
