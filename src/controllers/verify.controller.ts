@@ -4,6 +4,7 @@ import { VerificationMethod, VerificationResult } from '@prisma/client';
 import prisma from '../config/db';
 import { blockchainProvider, certificateRegistry } from '../config/blockchain';
 import env from '../config/env';
+import { renderSnapshotForResponse } from '../templates/snapshot';
 import { generateCertificateHash } from '../utils/certificateHash';
 
 function getMethod(value: unknown): VerificationMethod | undefined {
@@ -51,7 +52,54 @@ async function logVerification(input: {
   });
 }
 
+/**
+ * What the verification page needs to draw a VALID or REVOKED certificate: its frozen render snapshot (or,
+ * for certificates issued before templates, the computed fallback, which is never stored) and the values it
+ * shows. The values come from `verified`, the details just checked against the blockchain; only the
+ * graduation date, which is not part of the hash, is read here. Never includes the certificate hash, a date
+ * of birth or contact details. If it cannot be built, the result is returned without it.
+ */
+async function buildVerificationRender(certificateId: string, verified: {
+  certificateUid: string;
+  studentName: string;
+  studentNumber: string;
+  certificateType: string;
+  programName: string;
+  classification: string | null;
+  issueDate: Date;
+  institutionName: string;
+}) {
+  try {
+    const row = await prisma.certificate.findUnique({
+      where: { id: certificateId },
+      select: { graduationDate: true, renderSnapshot: true }
+    });
+    if (!row) return null;
+    const { renderSnapshot, snapshotIsFallback } = renderSnapshotForResponse(row.renderSnapshot, verified.institutionName);
+    return {
+      snapshot: renderSnapshot,
+      snapshotIsFallback,
+      data: {
+        studentName: verified.studentName,
+        studentNumber: verified.studentNumber,
+        certificateType: verified.certificateType,
+        programName: verified.programName,
+        classification: verified.classification,
+        issueDate: verified.issueDate,
+        graduationDate: row.graduationDate,
+        certificateUid: verified.certificateUid,
+        institutionName: verified.institutionName
+      }
+    };
+  } catch (error) {
+    console.error('Could not build the certificate render for verification:', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
 export async function verifyCertificate(req: Request, res: Response) {
+  // A result can change (for example when a certificate is revoked), so no response may be cached.
+  res.setHeader('Cache-Control', 'no-store');
   const certificateUid = req.params.certificateUid;
   const method = getMethod(req.query.method);
   if (!method) return res.status(400).json({ error: 'method must be qr or manual_id' });
@@ -156,6 +204,8 @@ export async function verifyCertificate(req: Request, res: Response) {
       ipAddress: req.ip
     });
 
+    // Only VALID and REVOKED results reach this point, so only they ever carry `render`.
+    const render = await buildVerificationRender(certificate.id, certificateDetails);
     return res.json({
       result: result.toLowerCase(),
       message: result === VerificationResult.REVOKED
@@ -164,7 +214,8 @@ export async function verifyCertificate(req: Request, res: Response) {
       certificate: certificateDetails,
       ...(result === VerificationResult.REVOKED && certificate.revokedReason
         ? { revokedReason: certificate.revokedReason }
-        : {})
+        : {}),
+      ...(render ? { render } : {})
     });
   } catch (error) {
     console.error('Certificate verification failed:', error instanceof Error ? error.message : error);
