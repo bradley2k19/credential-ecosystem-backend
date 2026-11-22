@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.snapshotTemplateName = snapshotTemplateName;
 exports.fallbackRenderSnapshot = fallbackRenderSnapshot;
 exports.renderSnapshotForResponse = renderSnapshotForResponse;
+exports.publicRenderSnapshot = publicRenderSnapshot;
 exports.checkDesignSignatories = checkDesignSignatories;
 exports.buildRenderSnapshot = buildRenderSnapshot;
 const design_1 = require("./design");
@@ -41,6 +42,35 @@ function renderSnapshotForResponse(stored, institutionName) {
     return stored === null
         ? { renderSnapshot: fallbackRenderSnapshot(institutionName), snapshotIsFallback: true }
         : { renderSnapshot: stored, snapshotIsFallback: false };
+}
+const jsonObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const textOf = (value) => (typeof value === 'string' ? value : '');
+const textOrNull = (value) => (typeof value === 'string' ? value : null);
+/**
+ * The copy of a snapshot that may be shown publicly: no internal ids. The template keeps only its name, and the
+ * design lists no signatory ids (the renderer draws the frozen `signatories`, which never carry ids). Built from
+ * an allow-list, so nothing else a stored snapshot might hold can reach the public response. Only the response
+ * is changed, never the stored snapshot.
+ */
+function publicRenderSnapshot(snapshot) {
+    const source = jsonObject(snapshot);
+    const design = jsonObject(source.design);
+    const institution = jsonObject(source.institution);
+    return {
+        snapshotVersion: typeof source.snapshotVersion === 'number' ? source.snapshotVersion : 1,
+        template: { name: textOf(jsonObject(source.template).name) },
+        design: { ...design, signatories: { ...jsonObject(design.signatories), ids: [] } },
+        institution: {
+            name: textOf(institution.name),
+            brandColor: textOrNull(institution.brandColor),
+            logoAssetId: textOrNull(institution.logoAssetId),
+            sealAssetId: textOrNull(institution.sealAssetId)
+        },
+        signatories: (Array.isArray(source.signatories) ? source.signatories : []).map((entry) => {
+            const signatory = jsonObject(entry);
+            return { name: textOf(signatory.name), title: textOf(signatory.title), signatureAssetId: textOrNull(signatory.signatureAssetId) };
+        })
+    };
 }
 /**
  * Checks that every signatory id belongs to the institution and is active. `context` picks the wording:

@@ -54,8 +54,9 @@ async function logVerification(input) {
  * What the verification page needs to draw a VALID or REVOKED certificate: its frozen render snapshot (or,
  * for certificates issued before templates, the computed fallback, which is never stored) and the values it
  * shows. The values come from `verified`, the details just checked against the blockchain; only the
- * graduation date, which is not part of the hash, is read here. Never includes the certificate hash, a date
- * of birth or contact details. If it cannot be built, the result is returned without it.
+ * graduation date, which is not part of the hash, is read here. The snapshot is the public copy, without
+ * internal ids (no template id, no signatory ids). Never includes the certificate hash, a date of birth or
+ * contact details. If it cannot be built, the result is returned without it.
  */
 async function buildVerificationRender(certificateId, verified) {
     try {
@@ -67,7 +68,7 @@ async function buildVerificationRender(certificateId, verified) {
             return null;
         const { renderSnapshot, snapshotIsFallback } = (0, snapshot_1.renderSnapshotForResponse)(row.renderSnapshot, verified.institutionName);
         return {
-            snapshot: renderSnapshot,
+            snapshot: (0, snapshot_1.publicRenderSnapshot)(renderSnapshot),
             snapshotIsFallback,
             data: {
                 studentName: verified.studentName,
@@ -155,10 +156,19 @@ async function verifyCertificate(req, res) {
                 result: client_1.VerificationResult.PENDING_CHAIN,
                 ipAddress: req.ip
             });
+            // Not yet confirmed on the chain: identifying details only, without the classification.
             return res.json({
                 result: 'pending-chain',
                 message: 'The certificate exists in the database but does not yet have a confirmed blockchain record.',
-                certificate: certificateDetails
+                certificate: {
+                    certificateUid: certificateDetails.certificateUid,
+                    studentName: certificateDetails.studentName,
+                    studentNumber: certificateDetails.studentNumber,
+                    certificateType: certificateDetails.certificateType,
+                    programName: certificateDetails.programName,
+                    issueDate: certificateDetails.issueDate,
+                    institutionName: certificateDetails.institutionName
+                }
             });
         }
         if (onChainHash.toLowerCase() !== recomputedHash.toLowerCase()
@@ -171,10 +181,11 @@ async function verifyCertificate(req, res) {
                 result: client_1.VerificationResult.TAMPERED,
                 ipAddress: req.ip
             });
+            // The stored details may have been altered, so none of them are returned: only the identifier queried.
             return res.json({
                 result: 'tampered',
                 message: 'Data integrity concern: the certificate data stored in the database does not match its blockchain record.',
-                certificate: certificateDetails
+                certificateUid
             });
         }
         const result = certificate.status === 'REVOKED' ? client_1.VerificationResult.REVOKED : client_1.VerificationResult.VALID;
