@@ -13,6 +13,11 @@ import templateRoutes from './routes/templates.routes';
 
 const app = express();
 
+// Exactly one proxy hop is trusted: Vercel's edge, which sets X-Forwarded-For to the client's address. req.ip
+// (see utils/clientIp.ts) is then the real client IP for rate limiting and verification logs; nothing further
+// along a client-supplied X-Forwarded-For chain is trusted.
+app.set('trust proxy', 1);
+
 // CORS runs first so every response carries its headers, including body-size errors from the parsers below
 // and the public asset images, which the frontend reads when capturing a certificate.
 app.use(
@@ -20,7 +25,9 @@ app.use(
     // Exact-match allowlist: only a listed origin is echoed back, never a wildcard or an arbitrary origin.
     // Requests without an Origin header (server-to-server tools) are not affected by CORS and still pass.
     origin: env.FRONTEND_ORIGINS,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    // Rate-limited (429) responses say when to try again; the body carries the same value.
+    exposedHeaders: ['Retry-After']
   })
 );
 

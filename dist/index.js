@@ -16,13 +16,19 @@ const students_routes_1 = __importDefault(require("./routes/students.routes"));
 const assets_routes_1 = __importDefault(require("./routes/assets.routes"));
 const templates_routes_1 = __importDefault(require("./routes/templates.routes"));
 const app = (0, express_1.default)();
+// Exactly one proxy hop is trusted: Vercel's edge, which sets X-Forwarded-For to the client's address. req.ip
+// (see utils/clientIp.ts) is then the real client IP for rate limiting and verification logs; nothing further
+// along a client-supplied X-Forwarded-For chain is trusted.
+app.set('trust proxy', 1);
 // CORS runs first so every response carries its headers, including body-size errors from the parsers below
 // and the public asset images, which the frontend reads when capturing a certificate.
 app.use((0, cors_1.default)({
     // Exact-match allowlist: only a listed origin is echoed back, never a wildcard or an arbitrary origin.
     // Requests without an Origin header (server-to-server tools) are not affected by CORS and still pass.
     origin: env_1.default.FRONTEND_ORIGINS,
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    // Rate-limited (429) responses say when to try again; the body carries the same value.
+    exposedHeaders: ['Retry-After']
 }));
 // Image uploads carry up to 500 KB as base64, so only these routes accept JSON bodies up to 1 MB.
 // They are parsed first; the default parser below then skips the already-parsed body.

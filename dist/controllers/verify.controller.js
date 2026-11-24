@@ -11,6 +11,9 @@ const blockchain_1 = require("../config/blockchain");
 const env_1 = __importDefault(require("../config/env"));
 const snapshot_1 = require("../templates/snapshot");
 const certificateHash_1 = require("../utils/certificateHash");
+const auditActions_1 = require("../utils/auditActions");
+const clientIp_1 = require("../utils/clientIp");
+const STATUS_MISMATCH_LOG_INTERVAL_MS = 60 * 60 * 1000;
 function getMethod(value) {
     if (value === undefined)
         return client_1.VerificationMethod.MANUAL_ID;
@@ -49,6 +52,39 @@ async function logVerification(input) {
             ipAddress: input.ipAddress
         }
     });
+}
+/**
+ * Records that the blockchain says a certificate is revoked while the database says it is active: one system
+ * AuditLog entry (no user), at most once per certificate per hour so repeated verifications do not flood the log.
+ * Holds no hash. Only reads and writes the audit log: the certificate itself is never changed here. A failure is
+ * logged and never changes the verification response.
+ */
+async function recordStatusMismatch(certificate) {
+    try {
+        const recent = await db_1.default.auditLog.findFirst({
+            where: {
+                action: auditActions_1.STATUS_MISMATCH_ACTION,
+                entityType: 'certificate',
+                entityId: certificate.id,
+                createdAt: { gte: new Date(Date.now() - STATUS_MISMATCH_LOG_INTERVAL_MS) }
+            },
+            select: { id: true }
+        });
+        if (recent)
+            return;
+        await db_1.default.auditLog.create({
+            data: {
+                userId: null,
+                action: auditActions_1.STATUS_MISMATCH_ACTION,
+                entityType: 'certificate',
+                entityId: certificate.id,
+                details: { certificateUid: certificate.certificateUid, databaseStatus: certificate.status, onChainRevoked: true }
+            }
+        });
+    }
+    catch (error) {
+        console.error('Could not record a verification status mismatch:', error instanceof Error ? error.message : error);
+    }
 }
 /**
  * What the verification page needs to draw a VALID or REVOKED certificate: its frozen render snapshot (or,
@@ -121,7 +157,7 @@ async function verifyCertificate(req, res) {
                 employerId,
                 method,
                 result: client_1.VerificationResult.NOT_FOUND,
-                ipAddress: req.ip
+                ipAddress: (0, clientIp_1.getClientIp)(req)
             });
             return res.status(404).json({ result: 'not_found', message: 'No certificate with this identifier was found.' });
         }
@@ -146,6 +182,7 @@ async function verifyCertificate(req, res) {
         });
         const chainRecord = await blockchain_1.certificateRegistry.getCertificate(certificate.certificateUid);
         const onChainHash = String(chainRecord.certificateHash ?? chainRecord[0]);
+        const onChainRevoked = Boolean(chainRecord.revoked ?? chainRecord[2]);
         const issuedAt = BigInt(chainRecord.issuedAt ?? chainRecord[3]);
         if (issuedAt === 0n || /^0x0{64}$/i.test(onChainHash)) {
             await logVerification({
@@ -154,7 +191,7 @@ async function verifyCertificate(req, res) {
                 employerId,
                 method,
                 result: client_1.VerificationResult.PENDING_CHAIN,
-                ipAddress: req.ip
+                ipAddress: (0, clientIp_1.getClientIp)(req)
             });
             // Not yet confirmed on the chain: identifying details only, without the classification.
             return res.json({
@@ -179,7 +216,7 @@ async function verifyCertificate(req, res) {
                 employerId,
                 method,
                 result: client_1.VerificationResult.TAMPERED,
-                ipAddress: req.ip
+                ipAddress: (0, clientIp_1.getClientIp)(req)
             });
             // The stored details may have been altered, so none of them are returned: only the identifier queried.
             return res.json({
@@ -188,14 +225,21 @@ async function verifyCertificate(req, res) {
                 certificateUid
             });
         }
-        const result = certificate.status === 'REVOKED' ? client_1.VerificationResult.REVOKED : client_1.VerificationResult.VALID;
+        // Status is not part of the hash, so the database status is cross-checked with the on-chain revoked flag:
+        // revoked if either says so. Database REVOKED with the chain not (yet) revoked is the normal database-first
+        // revocation; the chain revoked with the database ACTIVE is a mismatch, and the chain is trusted.
+        const databaseRevoked = certificate.status === 'REVOKED';
+        const statusMismatch = onChainRevoked && !databaseRevoked;
+        const result = databaseRevoked || onChainRevoked ? client_1.VerificationResult.REVOKED : client_1.VerificationResult.VALID;
+        if (statusMismatch)
+            await recordStatusMismatch(certificate);
         await logVerification({
             certificateId: certificate.id,
             certificateUid,
             employerId,
             method,
             result,
-            ipAddress: req.ip
+            ipAddress: (0, clientIp_1.getClientIp)(req)
         });
         // Only VALID and REVOKED results reach this point, so only they ever carry `render`.
         const render = await buildVerificationRender(certificate.id, certificateDetails);
@@ -205,8 +249,11 @@ async function verifyCertificate(req, res) {
                 ? 'This certificate is revoked.'
                 : 'Certificate verified successfully.',
             certificate: certificateDetails,
-            ...(result === client_1.VerificationResult.REVOKED && certificate.revokedReason
-                ? { revokedReason: certificate.revokedReason }
+            ...(result === client_1.VerificationResult.REVOKED
+                ? {
+                    revokedReason: certificate.revokedReason ?? null,
+                    revocation: { onChain: onChainRevoked, statusMismatch }
+                }
                 : {}),
             ...(render ? { render } : {})
         });

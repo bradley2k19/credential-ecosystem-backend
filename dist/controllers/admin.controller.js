@@ -14,6 +14,7 @@ const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const blockchain_1 = require("../config/blockchain");
 const image_1 = require("../utils/image");
+const auditActions_1 = require("../utils/auditActions");
 // keccak256("ISSUER_ROLE"), the contract's constant; computed locally to save an RPC round trip.
 const ISSUER_ROLE = (0, ethers_1.id)('ISSUER_ROLE');
 // One slow RPC read must never hold up a whole response.
@@ -21,6 +22,9 @@ const ROLE_READ_TIMEOUT_MS = 4000;
 // Serverless functions have a short time limit, so stop waiting for mining well before it.
 const MINE_WAIT_MS = 8000;
 const AUDIT_ACTIONS = ['INSTITUTION_VERIFIED', 'INSTITUTION_UNVERIFIED', 'ISSUER_GRANTED', 'ISSUER_REVOKED'];
+// Entries the system writes itself (no user), listed alongside administrator actions.
+const SYSTEM_AUDIT_ACTIONS = [auditActions_1.STATUS_MISMATCH_ACTION];
+const LISTED_AUDIT_ACTIONS = [...AUDIT_ACTIONS, ...SYSTEM_AUDIT_ACTIONS];
 const institutionSummaryFields = {
     id: true,
     name: true,
@@ -317,11 +321,18 @@ function revokeIssuerRole(req, res) {
 async function listAuditLogs(req, res) {
     const { page, limit } = parsePage(req.query, 100);
     const actionValue = typeof req.query.action === 'string' && req.query.action ? req.query.action.toUpperCase() : undefined;
-    if (actionValue && !AUDIT_ACTIONS.includes(actionValue)) {
-        return res.status(400).json({ error: `action must be one of ${AUDIT_ACTIONS.join(', ')}` });
+    if (actionValue && !LISTED_AUDIT_ACTIONS.includes(actionValue)) {
+        return res.status(400).json({ error: `action must be one of ${LISTED_AUDIT_ACTIONS.join(', ')}` });
     }
-    // Institutions also write audit entries (profile, logo, signatories); this view lists administrator actions only.
-    const where = { action: actionValue ?? { in: [...AUDIT_ACTIONS] }, user: { role: 'ADMIN' } };
+    // Institutions also write audit entries (profile, logo, signatories); this view lists administrator actions
+    // and the system's own security entries (no user) only.
+    const adminActions = { action: { in: [...AUDIT_ACTIONS] }, user: { role: 'ADMIN' } };
+    const systemActions = { action: { in: [...SYSTEM_AUDIT_ACTIONS] }, userId: null };
+    const where = actionValue
+        ? SYSTEM_AUDIT_ACTIONS.includes(actionValue)
+            ? { ...systemActions, action: actionValue }
+            : { ...adminActions, action: actionValue }
+        : { OR: [adminActions, systemActions] };
     try {
         const [rows, total] = await db_1.default.$transaction([
             db_1.default.auditLog.findMany({
@@ -340,18 +351,51 @@ async function listAuditLogs(req, res) {
             }),
             db_1.default.auditLog.count({ where })
         ]);
-        const institutionIds = [...new Set(rows.map((row) => row.entityId).filter((value) => Boolean(value)))];
+        const isSystem = (action) => SYSTEM_AUDIT_ACTIONS.includes(action);
+        const idsOf = (system) => [...new Set(rows
+                .filter((row) => isSystem(row.action) === system)
+                .map((row) => row.entityId)
+                .filter((value) => Boolean(value)))];
+        const institutionIds = idsOf(false);
+        const certificateIds = idsOf(true);
         const institutions = institutionIds.length
             ? await db_1.default.institution.findMany({ where: { id: { in: institutionIds } }, select: { id: true, name: true } })
             : [];
+        const certificates = certificateIds.length
+            ? await db_1.default.certificate.findMany({
+                where: { id: { in: certificateIds } },
+                select: { id: true, certificateUid: true, institution: { select: { id: true, name: true } } }
+            })
+            : [];
         const namesById = new Map(institutions.map((institution) => [institution.id, institution.name]));
+        const certificatesById = new Map(certificates.map((certificate) => [certificate.id, certificate]));
         const auditLogs = rows.map((row) => {
             const details = row.details && typeof row.details === 'object' && !Array.isArray(row.details) ? row.details : {};
+            if (isSystem(row.action)) {
+                // A system entry about a certificate: only its uid and the two statuses, never a hash.
+                const certificate = row.entityId ? certificatesById.get(row.entityId) : undefined;
+                const certificateUid = typeof details.certificateUid === 'string' ? details.certificateUid : certificate?.certificateUid ?? null;
+                return {
+                    id: row.id,
+                    createdAt: row.createdAt,
+                    adminEmail: null,
+                    system: true,
+                    action: row.action,
+                    institution: certificate ? { id: certificate.institution.id, name: certificate.institution.name } : null,
+                    certificate: { id: row.entityId, uid: certificateUid },
+                    details: {
+                        certificateUid,
+                        databaseStatus: typeof details.databaseStatus === 'string' ? details.databaseStatus : null,
+                        onChainRevoked: typeof details.onChainRevoked === 'boolean' ? details.onChainRevoked : null
+                    }
+                };
+            }
             const recordedName = typeof details.institutionName === 'string' ? details.institutionName : null;
             return {
                 id: row.id,
                 createdAt: row.createdAt,
                 adminEmail: row.user?.email ?? null,
+                system: false,
                 action: row.action,
                 institution: { id: row.entityId, name: (row.entityId && namesById.get(row.entityId)) || recordedName },
                 details

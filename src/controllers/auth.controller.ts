@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/db';
-import { hashPassword, comparePassword } from '../utils/password';
+import { hashPassword, verifyPassword } from '../utils/password';
 import jwt from 'jsonwebtoken';
 import env from '../config/env';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { getClientIp } from '../utils/clientIp';
+import { longestWait, rateLimiter, RATE_LIMIT_MESSAGES, RATE_LIMITS, sendTooManyRequests } from '../utils/rateLimit';
 
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -119,14 +121,36 @@ async function registerEmployer(req: Request, res: Response) {
 }
 
 async function login(req: Request, res: Response) {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
+  const { email, password } = req.body ?? {};
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    return res.status(400).json({ error: 'Missing email or password' });
+  }
+
+  // Failed attempts are limited per IP, and per email and IP together: never per email alone, so a stranger
+  // cannot lock someone else out of their account. The limits are checked before the password is compared, and
+  // the lockout message is the same whether or not the account exists.
+  const ip = getClientIp(req);
+  const emailAndIp = `${email.trim().toLowerCase()}\n${ip}`;
+  const wait = longestWait(await Promise.all([
+    rateLimiter.check(RATE_LIMITS.loginIp, ip),
+    rateLimiter.check(RATE_LIMITS.loginPair, emailAndIp)
+  ]));
+  if (wait !== null) return sendTooManyRequests(res, RATE_LIMIT_MESSAGES.attempts, wait);
+  const recordFailure = () => Promise.all([
+    rateLimiter.record(RATE_LIMITS.loginIp, ip),
+    rateLimiter.record(RATE_LIMITS.loginPair, emailAndIp)
+  ]);
+
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     const generic = { error: 'Invalid credentials' };
-    if (!user) return res.status(401).json(generic);
-    const ok = await comparePassword(password, user.passwordHash);
-    if (!ok) return res.status(401).json(generic);
+    // Without an account the password is still checked (against a dummy hash), so an unknown email and a wrong
+    // password take about the same time.
+    const ok = await verifyPassword(password, user?.passwordHash);
+    if (!user || !ok) {
+      await recordFailure();
+      return res.status(401).json(generic);
+    }
 
     // Administrator sessions are deliberately short-lived.
     const expiresIn = user.role === 'ADMIN' ? '2h' : '24h';
@@ -150,12 +174,19 @@ async function changePassword(req: AuthRequest, res: Response) {
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
 
+  // Wrong current passwords are limited per user, checked before the password is compared.
+  const limit = await rateLimiter.check(RATE_LIMITS.changePassword, userId);
+  if (!limit.allowed) return sendTooManyRequests(res, RATE_LIMIT_MESSAGES.attempts, limit.retryAfterSeconds);
+
   try {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, passwordHash: true } });
+    // Compared even without an account (against a dummy hash), so both cases take about the same time.
+    const ok = await verifyPassword(currentPassword, user?.passwordHash);
     if (!user) return res.status(401).json({ error: 'Invalid or expired token' });
-
-    const ok = await comparePassword(currentPassword, user.passwordHash);
-    if (!ok) return res.status(400).json({ error: 'Current password is incorrect' });
+    if (!ok) {
+      await rateLimiter.record(RATE_LIMITS.changePassword, userId);
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
     if (newPassword === currentPassword) {
       return res.status(400).json({ error: 'New password must be different from the current password' });
     }

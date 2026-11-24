@@ -7,6 +7,8 @@ const db_1 = __importDefault(require("../config/db"));
 const password_1 = require("../utils/password");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const env_1 = __importDefault(require("../config/env"));
+const clientIp_1 = require("../utils/clientIp");
+const rateLimit_1 = require("../utils/rateLimit");
 const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 async function registerInstitution(req, res) {
     const { email, password, name, registrationNumber, address, contactEmail } = req.body;
@@ -119,17 +121,35 @@ async function registerEmployer(req, res) {
     }
 }
 async function login(req, res) {
-    const { email, password } = req.body;
-    if (!email || !password)
+    const { email, password } = req.body ?? {};
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
         return res.status(400).json({ error: 'Missing email or password' });
+    }
+    // Failed attempts are limited per IP, and per email and IP together: never per email alone, so a stranger
+    // cannot lock someone else out of their account. The limits are checked before the password is compared, and
+    // the lockout message is the same whether or not the account exists.
+    const ip = (0, clientIp_1.getClientIp)(req);
+    const emailAndIp = `${email.trim().toLowerCase()}\n${ip}`;
+    const wait = (0, rateLimit_1.longestWait)(await Promise.all([
+        rateLimit_1.rateLimiter.check(rateLimit_1.RATE_LIMITS.loginIp, ip),
+        rateLimit_1.rateLimiter.check(rateLimit_1.RATE_LIMITS.loginPair, emailAndIp)
+    ]));
+    if (wait !== null)
+        return (0, rateLimit_1.sendTooManyRequests)(res, rateLimit_1.RATE_LIMIT_MESSAGES.attempts, wait);
+    const recordFailure = () => Promise.all([
+        rateLimit_1.rateLimiter.record(rateLimit_1.RATE_LIMITS.loginIp, ip),
+        rateLimit_1.rateLimiter.record(rateLimit_1.RATE_LIMITS.loginPair, emailAndIp)
+    ]);
     try {
         const user = await db_1.default.user.findUnique({ where: { email } });
         const generic = { error: 'Invalid credentials' };
-        if (!user)
+        // Without an account the password is still checked (against a dummy hash), so an unknown email and a wrong
+        // password take about the same time.
+        const ok = await (0, password_1.verifyPassword)(password, user?.passwordHash);
+        if (!user || !ok) {
+            await recordFailure();
             return res.status(401).json(generic);
-        const ok = await (0, password_1.comparePassword)(password, user.passwordHash);
-        if (!ok)
-            return res.status(401).json(generic);
+        }
         // Administrator sessions are deliberately short-lived.
         const expiresIn = user.role === 'ADMIN' ? '2h' : '24h';
         const token = jsonwebtoken_1.default.sign({ id: user.id, role: user.role }, env_1.default.JWT_SECRET, { expiresIn });
@@ -151,13 +171,20 @@ async function changePassword(req, res) {
     if (newPassword.length < 8) {
         return res.status(400).json({ error: 'New password must be at least 8 characters' });
     }
+    // Wrong current passwords are limited per user, checked before the password is compared.
+    const limit = await rateLimit_1.rateLimiter.check(rateLimit_1.RATE_LIMITS.changePassword, userId);
+    if (!limit.allowed)
+        return (0, rateLimit_1.sendTooManyRequests)(res, rateLimit_1.RATE_LIMIT_MESSAGES.attempts, limit.retryAfterSeconds);
     try {
         const user = await db_1.default.user.findUnique({ where: { id: userId }, select: { id: true, passwordHash: true } });
+        // Compared even without an account (against a dummy hash), so both cases take about the same time.
+        const ok = await (0, password_1.verifyPassword)(currentPassword, user?.passwordHash);
         if (!user)
             return res.status(401).json({ error: 'Invalid or expired token' });
-        const ok = await (0, password_1.comparePassword)(currentPassword, user.passwordHash);
-        if (!ok)
+        if (!ok) {
+            await rateLimit_1.rateLimiter.record(rateLimit_1.RATE_LIMITS.changePassword, userId);
             return res.status(400).json({ error: 'Current password is incorrect' });
+        }
         if (newPassword === currentPassword) {
             return res.status(400).json({ error: 'New password must be different from the current password' });
         }
