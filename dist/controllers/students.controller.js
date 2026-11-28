@@ -11,6 +11,7 @@ const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const onChain_1 = require("../utils/onChain");
 const snapshot_1 = require("../templates/snapshot");
+const certificateFacts_1 = require("../utils/certificateFacts");
 // Deliberately excludes certificateHash, studentId and institutionId.
 const studentCertificateFields = {
     id: true,
@@ -118,18 +119,23 @@ async function getCertificate(req, res) {
             select: {
                 ...studentCertificateFields,
                 renderSnapshot: true,
-                // The renderer's {{student_name}} and {{student_number}}; the student's own record, nothing else.
-                student: { select: { fullName: true, studentNumber: true } }
+                // The renderer's {{student_name}}, {{student_number}} and institution name (see certificateFacts).
+                ...certificateFacts_1.certificateFactFields
             }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
         // Only the single-certificate response carries the snapshot: the frozen one, or the computed fallback.
-        const { renderSnapshot, student, ...row } = certificate;
+        const { renderSnapshot, student: _student, hashVersion: _hashVersion, studentNameAtIssue: _name, studentNumberAtIssue: _number, institutionNameAtIssue: _institutionName, ...row } = certificate;
+        // The certificate's own facts: frozen at issuance for version 2, the live records for version 1 (as before).
+        const facts = (0, certificateFacts_1.certificateFacts)(certificate);
+        const rendered = (0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, facts.institutionName);
         return res.json({
             ...toStudentCertificate(row),
-            student,
-            ...(0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, row.institution.name)
+            institutionName: facts.institutionName,
+            student: { fullName: facts.studentName, studentNumber: facts.studentNumber },
+            ...rendered,
+            ...(facts.frozen ? { renderSnapshot: (0, snapshot_1.withPrintedInstitutionName)(rendered.renderSnapshot, facts.institutionName) } : {})
         });
     }
     catch (error) {

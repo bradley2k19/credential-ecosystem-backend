@@ -13,6 +13,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const certificateHash_1 = require("../utils/certificateHash");
+const certificateFacts_1 = require("../utils/certificateFacts");
 const blockchain_1 = require("../config/blockchain");
 const onChain_1 = require("../utils/onChain");
 const snapshot_1 = require("../templates/snapshot");
@@ -84,34 +85,40 @@ async function issueCertificate(req, res) {
         const result = await db_1.default.$transaction(async (tx) => {
             const student = await tx.student.findFirst({
                 where: { id: studentId, institutionId },
-                select: { id: true }
+                select: { id: true, fullName: true, studentNumber: true }
             });
             if (!student)
                 return { status: 404, body: { error: 'Student not found' } };
+            const institution = await tx.institution.findUnique({ where: { id: institutionId }, select: { name: true } });
+            if (!institution)
+                return { status: 403, body: { error: 'Institution profile not found' } };
             // Presentation only: the template and snapshot never feed into the certificate hash below.
             const render = await (0, snapshot_1.buildRenderSnapshot)(tx, institutionId, templateId);
             if (!render.ok)
                 return { status: 400, body: { error: render.error } };
-            const certificateUid = crypto_1.default.randomUUID();
-            const certificateHash = (0, certificateHash_1.generateCertificateHash)({
+            // Everything the certificate prints, as it will be stored: the student's and institution's current
+            // details are copied (frozen) here and never written again, and hash version 2 covers all of it.
+            const stored = {
+                hashVersion: certificateHash_1.CURRENT_HASH_VERSION,
+                certificateUid: crypto_1.default.randomUUID(),
                 studentId,
                 institutionId,
                 certificateType,
                 programName,
                 classification: classification ?? null,
                 issueDate: parsedIssueDate,
-                certificateUid
-            });
+                graduationDate: parsedGraduationDate ?? null,
+                studentNameAtIssue: student.fullName,
+                studentNumberAtIssue: student.studentNumber,
+                institutionNameAtIssue: institution.name
+            };
+            // The same dispatcher verification uses, from exactly the values being stored.
+            const certificateHash = (0, certificateHash_1.computeCertificateHash)(stored);
+            if (!certificateHash)
+                throw new Error(`No hash function for hash version ${stored.hashVersion}`);
             const certificate = await tx.certificate.create({
                 data: {
-                    certificateUid,
-                    studentId,
-                    institutionId,
-                    certificateType,
-                    programName,
-                    classification: classification ?? null,
-                    issueDate: parsedIssueDate,
-                    graduationDate: parsedGraduationDate,
+                    ...stored,
                     certificateHash,
                     status: client_1.CertificateStatus.ACTIVE,
                     // Frozen here and never written again.
@@ -181,17 +188,22 @@ async function getCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: { ...singleCertificateFields, renderSnapshot: true, institution: { select: { name: true } } }
+            select: { ...singleCertificateFields, ...certificateFacts_1.certificateFactFields, renderSnapshot: true }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
-        const { renderSnapshot, institution, ...row } = certificate;
+        const { renderSnapshot, institution: _institution, hashVersion: _hashVersion, studentNameAtIssue: _name, studentNumberAtIssue: _number, institutionNameAtIssue: _institutionName, ...row } = certificate;
+        // The certificate's own facts: frozen at issuance for version 2, the live records for version 1 (as before).
+        const facts = (0, certificateFacts_1.certificateFacts)(certificate);
+        const rendered = (0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, facts.institutionName);
         return res.json({
             ...row,
-            institutionName: institution.name,
+            student: { fullName: facts.studentName, studentNumber: facts.studentNumber },
+            institutionName: facts.institutionName,
             // From the stored snapshot only, so older certificates report null rather than the fallback's name.
             templateName: (0, snapshot_1.snapshotTemplateName)(renderSnapshot),
-            ...(0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, institution.name)
+            ...rendered,
+            ...(facts.frozen ? { renderSnapshot: (0, snapshot_1.withPrintedInstitutionName)(rendered.renderSnapshot, facts.institutionName) } : {})
         });
     }
     catch (error) {

@@ -1,0 +1,97 @@
+{
+  "description": "Version 1 certificate hashes, produced by the committed generateCertificateHash before hash version 2 was added. They must never change.",
+  "generatedFrom": "dist/utils/certificateHash.js at commit 35d0300",
+  "fixtures": [
+    {
+      "name": "typical certificate",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Bachelor of Science",
+        "programName": "Computer Science",
+        "classification": "First Class Honours",
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000001"
+      },
+      "hash": "0xbb0d53c34e76a12bba0d7177bc2077795a71852df8d8d95a5eb81dc981467533"
+    },
+    {
+      "name": "no classification (null)",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Bachelor of Science",
+        "programName": "Computer Science",
+        "classification": null,
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000002"
+      },
+      "hash": "0x019535635df2889f9da9494c30a8d9830773d338ce204c6819f12397167ce0f1"
+    },
+    {
+      "name": "empty classification (same as null in v1)",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Bachelor of Science",
+        "programName": "Computer Science",
+        "classification": "",
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000002"
+      },
+      "hash": "0x019535635df2889f9da9494c30a8d9830773d338ce204c6819f12397167ce0f1"
+    },
+    {
+      "name": "issue date with a time of day (v1 hashes the full ISO timestamp)",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Bachelor of Science",
+        "programName": "Computer Science",
+        "classification": "First Class Honours",
+        "issueDate": "2025-12-31T23:59:58.123Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000003"
+      },
+      "hash": "0x7f0d615ccc69c3d6c1372e6397c65965d5f8c94429809883866dccb8358c6354"
+    },
+    {
+      "name": "accented text, NFC",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Diplôme",
+        "programName": "Génie Logiciel et Systèmes",
+        "classification": "First Class Honours",
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000004"
+      },
+      "hash": "0xec96c8b0c3363c93bd9985d82a4e5edebcef29ba9f9ee41b010be171d2218079"
+    },
+    {
+      "name": "accented text, NFD (v1 does not normalise, so it differs from NFC)",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Diplôme",
+        "programName": "Génie Logiciel et Systèmes",
+        "classification": "First Class Honours",
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000004"
+      },
+      "hash": "0xe279e4db696bcf2c6838f1277002b0b7e79e6290b7cd6d8b540c2b9da7d3b9b5"
+    },
+    {
+      "name": "separator and spaces kept as they are",
+      "input": {
+        "studentId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "institutionId": "bbbbbbbb-0000-4000-8000-000000000001",
+        "certificateType": "Bachelor of Science",
+        "programName": "  Law | Economics  ",
+        "classification": "Upper  Second",
+        "issueDate": "2026-09-16T00:00:00.000Z",
+        "certificateUid": "11111111-0000-4000-8000-000000000005"
+      },
+      "hash": "0x24e172dad3168c70a5e3570a21127991d587d761daa6199551c041bffa8eecbe"
+    }
+  ]
+}

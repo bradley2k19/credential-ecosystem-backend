@@ -36,8 +36,14 @@ export interface FakeCertificate {
   status: 'ACTIVE' | 'REVOKED';
   revokedReason: string | null;
   renderSnapshot: unknown;
-  student: { fullName: string; studentNumber: string };
-  institution: { id: string; name: string };
+  // Embedded relations, for certificates whose student and institution are not in state.students/institutions.
+  student?: { fullName: string; studentNumber: string };
+  institution?: { id: string; name: string };
+  // Database defaults apply when absent: hash version 1 and no frozen facts.
+  hashVersion?: number;
+  studentNameAtIssue?: string | null;
+  studentNumberAtIssue?: string | null;
+  institutionNameAtIssue?: string | null;
 }
 
 export interface ChainRecord {
@@ -53,6 +59,9 @@ export const state = {
   verifications: [] as Row[],
   auditLogs: [] as Row[],
   rateLimitEvents: [] as { id: string; scope: string; keyHash: string; createdAt: Date }[],
+  // Live student and institution records, joined into certificates the way the database joins them.
+  students: [] as Row[],
+  institutions: [] as Row[],
   chain: new Map<string, ChainRecord>(),
   certificateWrites: 0,
   // When true, every rate-limit table operation fails (to test that the limiter fails open).
@@ -66,6 +75,8 @@ export function resetState() {
   state.verifications = [];
   state.auditLogs = [];
   state.rateLimitEvents = [];
+  state.students = [];
+  state.institutions = [];
   state.chain = new Map();
   state.certificateWrites = 0;
   state.rateLimitTableDown = false;
@@ -85,10 +96,57 @@ const refuseWrite = () => {
   throw new Error('stand-in: certificates must never be written here');
 };
 
+/**
+ * A certificate as the database returns it: column defaults filled in (hash version 1, no frozen facts), and the
+ * student and institution joined LIVE from their own records, so editing those records shows up here exactly as
+ * it would in Postgres. Certificates that carry their own `student` / `institution` objects keep them.
+ */
+function withRelations(row: Row) {
+  const student = state.students.find((item) => item.id === row.studentId);
+  const institution = state.institutions.find((item) => item.id === row.institutionId);
+  return {
+    hashVersion: 1,
+    studentNameAtIssue: null,
+    studentNumberAtIssue: null,
+    institutionNameAtIssue: null,
+    blockchainTransactions: [],
+    ...row,
+    student: student ? { fullName: student.fullName, studentNumber: student.studentNumber } : row.student,
+    institution: institution ? { name: institution.name } : row.institution
+  };
+}
+const matchesWhere = (row: Row, where: Row) => Object.entries(where).every(([key, value]) => row[key] === value);
+
+/** Returns only the selected fields, as Prisma does (nested `{ select }` for relations); everything without one. */
+function project(row: Row | null | undefined, select?: Row): any {
+  if (!row || !select) return row ?? null;
+  const picked: Row = {};
+  for (const [key, choice] of Object.entries(select)) {
+    if (!choice) continue;
+    const value = row[key];
+    if (choice !== true && typeof choice === 'object' && 'select' in choice) {
+      picked[key] = Array.isArray(value) ? value.map((item) => project(item, choice.select)) : project(value, choice.select);
+    } else {
+      picked[key] = value;
+    }
+  }
+  return picked;
+}
+
 export const fakePrisma: Row = {
   certificate: {
-    async findUnique({ where }: Row) {
-      return state.certificates.find((item) => (where.certificateUid ? item.certificateUid === where.certificateUid : item.id === where.id)) ?? null;
+    async findUnique({ where, select }: Row) {
+      const row = state.certificates.find((item) => (where.certificateUid ? item.certificateUid === where.certificateUid : item.id === where.id));
+      return row ? project(withRelations(row), select) : null;
+    },
+    async findFirst({ where, select }: Row) {
+      const row = state.certificates.find((item) => matchesWhere(item, where));
+      return row ? project(withRelations(row), select) : null;
+    },
+    async create({ data, select }: Row) {
+      const row = { id: newId(), createdAt: new Date(), updatedAt: new Date(), ...data };
+      state.certificates.push(row);
+      return project(withRelations(row), select);
     },
     update: refuseWrite,
     updateMany: refuseWrite,
@@ -131,8 +189,32 @@ export const fakePrisma: Row = {
     }
   },
   institution: {
-    async findUnique({ where }: Row) {
-      return { id: where.id, name: 'Example University' };
+    async findUnique({ where, select }: Row) {
+      return project(state.institutions.find((item) => matchesWhere(item, where)), select);
+    }
+  },
+  student: {
+    async findFirst({ where, select }: Row) {
+      return project(state.students.find((item) => matchesWhere(item, where)), select);
+    },
+    async findUnique({ where, select }: Row) {
+      return project(state.students.find((item) => matchesWhere(item, where)), select);
+    },
+    async update({ where, data }: Row) {
+      const student = state.students.find((item) => item.id === where.id);
+      Object.assign(student!, data);
+      return student;
+    }
+  },
+  // Issuance with no saved template: the built-in design, and no active signatories.
+  certificateTemplate: {
+    async findFirst() {
+      return null;
+    }
+  },
+  signatory: {
+    async findMany() {
+      return [];
     }
   },
   async $transaction(work: (tx: Row) => Promise<unknown>) {
@@ -141,10 +223,12 @@ export const fakePrisma: Row = {
       table.push(row);
       return row;
     };
+    // The transaction client can do everything the client can, plus the creates registration uses.
     return work({
-      user: { create: create(state.users) },
-      institution: { create: create([]) },
-      student: { create: create([]) },
+      ...fakePrisma,
+      user: { ...fakePrisma.user, create: create(state.users) },
+      institution: { ...fakePrisma.institution, create: create([]) },
+      student: { ...fakePrisma.student, create: create([]) },
       employer: { create: create([]) }
     });
   },

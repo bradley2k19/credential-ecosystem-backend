@@ -11,6 +11,7 @@ const blockchain_1 = require("../config/blockchain");
 const env_1 = __importDefault(require("../config/env"));
 const snapshot_1 = require("../templates/snapshot");
 const certificateHash_1 = require("../utils/certificateHash");
+const certificateFacts_1 = require("../utils/certificateFacts");
 const auditActions_1 = require("../utils/auditActions");
 const clientIp_1 = require("../utils/clientIp");
 const STATUS_MISMATCH_LOG_INTERVAL_MS = 60 * 60 * 1000;
@@ -89,22 +90,23 @@ async function recordStatusMismatch(certificate) {
 /**
  * What the verification page needs to draw a VALID or REVOKED certificate: its frozen render snapshot (or,
  * for certificates issued before templates, the computed fallback, which is never stored) and the values it
- * shows. The values come from `verified`, the details just checked against the blockchain; only the
- * graduation date, which is not part of the hash, is read here. The snapshot is the public copy, without
- * internal ids (no template id, no signatory ids). Never includes the certificate hash, a date of birth or
- * contact details. If it cannot be built, the result is returned without it.
+ * shows. The values are `verified`, the details just checked against the blockchain, and the graduation date
+ * read in the same query (hashed too for version 2). For certificates with frozen facts, the snapshot's
+ * institution name is replaced by the verified one, so the name drawn is the name the hash covers. The snapshot
+ * is the public copy, without internal ids (no template id, no signatory ids). Never includes the certificate
+ * hash, a date of birth or contact details. If it cannot be built, the result is returned without it.
  */
-async function buildVerificationRender(certificateId, verified) {
+async function buildVerificationRender(certificateId, verified, graduationDate, factsAreFrozen) {
     try {
         const row = await db_1.default.certificate.findUnique({
             where: { id: certificateId },
-            select: { graduationDate: true, renderSnapshot: true }
+            select: { renderSnapshot: true }
         });
         if (!row)
             return null;
         const { renderSnapshot, snapshotIsFallback } = (0, snapshot_1.renderSnapshotForResponse)(row.renderSnapshot, verified.institutionName);
         return {
-            snapshot: (0, snapshot_1.publicRenderSnapshot)(renderSnapshot),
+            snapshot: (0, snapshot_1.publicRenderSnapshot)(renderSnapshot, factsAreFrozen ? verified.institutionName : undefined),
             snapshotIsFallback,
             data: {
                 studentName: verified.studentName,
@@ -113,7 +115,7 @@ async function buildVerificationRender(certificateId, verified) {
                 programName: verified.programName,
                 classification: verified.classification,
                 issueDate: verified.issueDate,
-                graduationDate: row.graduationDate,
+                graduationDate,
                 certificateUid: verified.certificateUid,
                 institutionName: verified.institutionName
             }
@@ -144,11 +146,12 @@ async function verifyCertificate(req, res) {
                 programName: true,
                 classification: true,
                 issueDate: true,
+                graduationDate: true,
                 certificateHash: true,
                 status: true,
                 revokedReason: true,
-                student: { select: { fullName: true, studentNumber: true } },
-                institution: { select: { name: true } }
+                // hashVersion, the frozen facts, and the live student and institution (used by version 1 only).
+                ...certificateFacts_1.certificateFactFields
             }
         });
         if (!certificate) {
@@ -161,25 +164,21 @@ async function verifyCertificate(req, res) {
             });
             return res.status(404).json({ result: 'not_found', message: 'No certificate with this identifier was found.' });
         }
+        // What the certificate prints: its own frozen copy (version 2), or the live records (version 1, as before).
+        const facts = (0, certificateFacts_1.certificateFacts)(certificate);
         const certificateDetails = {
             certificateUid: certificate.certificateUid,
-            studentName: certificate.student.fullName,
-            studentNumber: certificate.student.studentNumber,
+            studentName: facts.studentName,
+            studentNumber: facts.studentNumber,
             certificateType: certificate.certificateType,
             programName: certificate.programName,
             classification: certificate.classification,
             issueDate: certificate.issueDate,
-            institutionName: certificate.institution.name
+            institutionName: facts.institutionName
         };
-        const recomputedHash = (0, certificateHash_1.generateCertificateHash)({
-            studentId: certificate.studentId,
-            institutionId: certificate.institutionId,
-            certificateType: certificate.certificateType,
-            programName: certificate.programName,
-            classification: certificate.classification,
-            issueDate: certificate.issueDate,
-            certificateUid: certificate.certificateUid
-        });
+        // The same dispatcher issuance used: version 1 exactly as before, version 2 from the row's own fields only.
+        // An unknown version gives null, which never matches.
+        const recomputedHash = (0, certificateHash_1.computeCertificateHash)(certificate);
         const chainRecord = await blockchain_1.certificateRegistry.getCertificate(certificate.certificateUid);
         const onChainHash = String(chainRecord.certificateHash ?? chainRecord[0]);
         const onChainRevoked = Boolean(chainRecord.revoked ?? chainRecord[2]);
@@ -208,7 +207,8 @@ async function verifyCertificate(req, res) {
                 }
             });
         }
-        if (onChainHash.toLowerCase() !== recomputedHash.toLowerCase()
+        if (recomputedHash === null
+            || onChainHash.toLowerCase() !== recomputedHash.toLowerCase()
             || certificate.certificateHash.toLowerCase() !== recomputedHash.toLowerCase()) {
             await logVerification({
                 certificateId: certificate.id,
@@ -242,7 +242,7 @@ async function verifyCertificate(req, res) {
             ipAddress: (0, clientIp_1.getClientIp)(req)
         });
         // Only VALID and REVOKED results reach this point, so only they ever carry `render`.
-        const render = await buildVerificationRender(certificate.id, certificateDetails);
+        const render = await buildVerificationRender(certificate.id, certificateDetails, certificate.graduationDate, facts.frozen);
         return res.json({
             result: result.toLowerCase(),
             message: result === client_1.VerificationResult.REVOKED

@@ -233,6 +233,14 @@ model Certificate {
   // Frozen at issuance (design + branding + signatories) and never written again. Null for older certificates.
   renderSnapshot  Json?
   templateId      String?
+  // Which hash function covers this certificate (src/utils/certificateHash.ts). 1: the original seven inputs.
+  // 2: every fact the certificate prints, including the frozen copies below. Never changed after issuance.
+  hashVersion            Int     @default(1)
+  // The facts the certificate prints, copied at issuance (hash version 2) and never written again, so later edits
+  // to the student or institution never change an issued certificate. Null for version 1 certificates.
+  studentNameAtIssue     String?
+  studentNumberAtIssue   String?
+  institutionNameAtIssue String?
   template        CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
 
   blockchainTransactions BlockchainTransaction[]

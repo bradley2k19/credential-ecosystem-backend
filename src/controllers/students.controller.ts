@@ -3,7 +3,8 @@ import { CertificateStatus, Prisma, VerificationResult } from '@prisma/client';
 import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
-import { renderSnapshotForResponse } from '../templates/snapshot';
+import { renderSnapshotForResponse, withPrintedInstitutionName } from '../templates/snapshot';
+import { certificateFactFields, certificateFacts } from '../utils/certificateFacts';
 
 // Deliberately excludes certificateHash, studentId and institutionId.
 const studentCertificateFields = {
@@ -119,17 +120,22 @@ export async function getCertificate(req: AuthRequest, res: Response) {
       select: {
         ...studentCertificateFields,
         renderSnapshot: true,
-        // The renderer's {{student_name}} and {{student_number}}; the student's own record, nothing else.
-        student: { select: { fullName: true, studentNumber: true } }
+        // The renderer's {{student_name}}, {{student_number}} and institution name (see certificateFacts).
+        ...certificateFactFields
       }
     });
     if (!certificate) return res.status(404).json({ error: 'Certificate not found' });
     // Only the single-certificate response carries the snapshot: the frozen one, or the computed fallback.
-    const { renderSnapshot, student, ...row } = certificate;
+    const { renderSnapshot, student: _student, hashVersion: _hashVersion, studentNameAtIssue: _name, studentNumberAtIssue: _number, institutionNameAtIssue: _institutionName, ...row } = certificate;
+    // The certificate's own facts: frozen at issuance for version 2, the live records for version 1 (as before).
+    const facts = certificateFacts(certificate);
+    const rendered = renderSnapshotForResponse(renderSnapshot, facts.institutionName);
     return res.json({
       ...toStudentCertificate(row),
-      student,
-      ...renderSnapshotForResponse(renderSnapshot, row.institution.name)
+      institutionName: facts.institutionName,
+      student: { fullName: facts.studentName, studentNumber: facts.studentNumber },
+      ...rendered,
+      ...(facts.frozen ? { renderSnapshot: withPrintedInstitutionName(rendered.renderSnapshot, facts.institutionName) } : {})
     });
   } catch (error) {
     console.error('Database error while fetching student certificate:', error instanceof Error ? error.message : error);

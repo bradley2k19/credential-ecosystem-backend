@@ -48,6 +48,17 @@ export function renderSnapshotForResponse(stored: Prisma.JsonValue | null, insti
     : { renderSnapshot: stored, snapshotIsFallback: false };
 }
 
+/**
+ * A copy of a snapshot whose institution name is `name`. The renderer draws the snapshot's institution name, which
+ * is not hashed; for certificates whose facts are frozen and hashed (version 2), responses put the hashed name
+ * there, so the name drawn is always the name the hash covers. Both were read in the issuing transaction, so for
+ * an untouched certificate they are the same. The stored snapshot itself is never changed.
+ */
+export function withPrintedInstitutionName(snapshot: Prisma.JsonValue, name: string): Prisma.JsonValue {
+  const source = jsonObject(snapshot);
+  return { ...source, institution: { ...jsonObject(source.institution), name } };
+}
+
 /** A snapshot as returned on the public verification page: the same as RenderSnapshot, without internal ids. */
 export interface PublicRenderSnapshot {
   snapshotVersion: number;
@@ -66,9 +77,10 @@ const textOrNull = (value: unknown) => (typeof value === 'string' ? value : null
  * The copy of a snapshot that may be shown publicly: no internal ids. The template keeps only its name, and the
  * design lists no signatory ids (the renderer draws the frozen `signatories`, which never carry ids). Built from
  * an allow-list, so nothing else a stored snapshot might hold can reach the public response. Only the response
- * is changed, never the stored snapshot.
+ * is changed, never the stored snapshot. `printedInstitutionName`, when given, replaces the institution name (see
+ * withPrintedInstitutionName).
  */
-export function publicRenderSnapshot(snapshot: Prisma.JsonValue): PublicRenderSnapshot {
+export function publicRenderSnapshot(snapshot: Prisma.JsonValue, printedInstitutionName?: string): PublicRenderSnapshot {
   const source = jsonObject(snapshot);
   const design = jsonObject(source.design);
   const institution = jsonObject(source.institution);
@@ -77,7 +89,7 @@ export function publicRenderSnapshot(snapshot: Prisma.JsonValue): PublicRenderSn
     template: { name: textOf(jsonObject(source.template).name) },
     design: { ...design, signatories: { ...jsonObject(design.signatories), ids: [] } },
     institution: {
-      name: textOf(institution.name),
+      name: printedInstitutionName ?? textOf(institution.name),
       brandColor: textOrNull(institution.brandColor),
       logoAssetId: textOrNull(institution.logoAssetId),
       sealAssetId: textOrNull(institution.sealAssetId)
