@@ -12,9 +12,55 @@ const env_1 = __importDefault(require("../config/env"));
 const snapshot_1 = require("../templates/snapshot");
 const certificateHash_1 = require("../utils/certificateHash");
 const certificateFacts_1 = require("../utils/certificateFacts");
+const notifications_1 = require("../utils/notifications");
 const auditActions_1 = require("../utils/auditActions");
 const clientIp_1 = require("../utils/clientIp");
 const STATUS_MISMATCH_LOG_INTERVAL_MS = 60 * 60 * 1000;
+// The response waits at most this long for the verification notifications (they normally take a few queries).
+const NOTIFY_WAIT_MS = 1500;
+const RESULT_LABELS = {
+    [client_1.VerificationResult.VALID]: 'valid',
+    [client_1.VerificationResult.REVOKED]: 'revoked',
+    [client_1.VerificationResult.PENDING_CHAIN]: 'pending blockchain confirmation'
+};
+async function verifierName(employerId) {
+    if (!employerId)
+        return 'an anonymous verifier';
+    try {
+        const employer = await db_1.default.employer.findUnique({ where: { id: employerId }, select: { companyName: true } });
+        return employer?.companyName || 'an employer';
+    }
+    catch {
+        return 'an employer';
+    }
+}
+/**
+ * After a verification linked to a certificate has been logged: tells the student (unless they turned this off)
+ * and the institution, each at most once per certificate and result per 24 hours. Never throws.
+ */
+async function notifyVerified(certificate, result, employerId) {
+    try {
+        const options = { certificateId: certificate.id, dedupeKey: `verified:${certificate.id}:${result}` };
+        const tampered = result === client_1.VerificationResult.TAMPERED;
+        const label = RESULT_LABELS[result] ?? result.toLowerCase();
+        const studentName = (0, certificateFacts_1.certificateFacts)(certificate).studentName;
+        const toStudent = async () => {
+            if (!certificate.student.user.notifyOnVerification)
+                return;
+            const message = tampered
+                ? notifications_1.notificationMessages.integrityConcernForStudent(certificate.certificateType)
+                : notifications_1.notificationMessages.verifiedForStudent(certificate.certificateType, label, await verifierName(employerId));
+            await (0, notifications_1.notify)(certificate.student.userId, client_1.NotificationType.VERIFICATION_REQUEST, message, options);
+        };
+        const toInstitution = (0, notifications_1.notify)(certificate.institution.userId, client_1.NotificationType.VERIFICATION_REQUEST, tampered
+            ? notifications_1.notificationMessages.integrityConcernForInstitution(certificate.certificateType, studentName)
+            : notifications_1.notificationMessages.verifiedForInstitution(certificate.certificateType, studentName, label), options);
+        await Promise.all([toStudent(), toInstitution]);
+    }
+    catch (error) {
+        console.error('Could not send verification notifications:', error instanceof Error ? error.message : error);
+    }
+}
 function getMethod(value) {
     if (value === undefined)
         return client_1.VerificationMethod.MANUAL_ID;
@@ -151,7 +197,10 @@ async function verifyCertificate(req, res) {
                 status: true,
                 revokedReason: true,
                 // hashVersion, the frozen facts, and the live student and institution (used by version 1 only).
-                ...certificateFacts_1.certificateFactFields
+                ...certificateFacts_1.certificateFactFields,
+                // The same, plus who to notify (never sent in the response).
+                student: { select: { fullName: true, studentNumber: true, userId: true, user: { select: { notifyOnVerification: true } } } },
+                institution: { select: { name: true, userId: true } }
             }
         });
         if (!certificate) {
@@ -192,6 +241,7 @@ async function verifyCertificate(req, res) {
                 result: client_1.VerificationResult.PENDING_CHAIN,
                 ipAddress: (0, clientIp_1.getClientIp)(req)
             });
+            await (0, notifications_1.settleWithin)(notifyVerified(certificate, client_1.VerificationResult.PENDING_CHAIN, employerId), NOTIFY_WAIT_MS);
             // Not yet confirmed on the chain: identifying details only, without the classification.
             return res.json({
                 result: 'pending-chain',
@@ -218,6 +268,7 @@ async function verifyCertificate(req, res) {
                 result: client_1.VerificationResult.TAMPERED,
                 ipAddress: (0, clientIp_1.getClientIp)(req)
             });
+            await (0, notifications_1.settleWithin)(notifyVerified(certificate, client_1.VerificationResult.TAMPERED, employerId), NOTIFY_WAIT_MS);
             // The stored details may have been altered, so none of them are returned: only the identifier queried.
             return res.json({
                 result: 'tampered',
@@ -241,8 +292,11 @@ async function verifyCertificate(req, res) {
             result,
             ipAddress: (0, clientIp_1.getClientIp)(req)
         });
+        // Notifications run alongside building the render; the response waits for them only briefly.
+        const notifying = notifyVerified(certificate, result, employerId);
         // Only VALID and REVOKED results reach this point, so only they ever carry `render`.
         const render = await buildVerificationRender(certificate.id, certificateDetails, certificate.graduationDate, facts.frozen);
+        await (0, notifications_1.settleWithin)(notifying, NOTIFY_WAIT_MS);
         return res.json({
             result: result.toLowerCase(),
             message: result === client_1.VerificationResult.REVOKED

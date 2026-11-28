@@ -23,10 +23,13 @@ exports.RATE_LIMITS = {
     // Every registration request (institution, student and employer together), per IP.
     register: { scope: 'register', limit: 5, windowSeconds: 60 * 60 },
     // Wrong current passwords, per signed-in user.
-    changePassword: { scope: 'pwd', limit: 5, windowSeconds: 15 * 60 }
+    changePassword: { scope: 'pwd', limit: 5, windowSeconds: 15 * 60 },
+    // Correction requests created, per student.
+    correctionRequest: { scope: 'correction', limit: 5, windowSeconds: 24 * 60 * 60 }
 };
 exports.RATE_LIMIT_MESSAGES = {
     verify: 'Too many verification requests. Please wait a minute and try again.',
+    correctionRequest: 'You can request at most 5 corrections a day. Please try again later.',
     // The same message for every lockout, so it never reveals whether an account exists.
     attempts: 'Too many attempts. Please try again later.'
 };

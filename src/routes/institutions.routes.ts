@@ -6,6 +6,7 @@ import institutionWalletController from '../controllers/institution-wallet.contr
 import institutionReportsController from '../controllers/institution-reports.controller';
 import institutionProfileController from '../controllers/institution-profile.controller';
 import institutionTemplatesController from '../controllers/institution-templates.controller';
+import institutionCorrectionsController from '../controllers/institution-corrections.controller';
 
 const router = Router();
 
@@ -46,6 +47,10 @@ router.put('/me/templates/:templateId', institutionOnly, institutionTemplatesCon
 router.post('/me/templates/:templateId/clone', institutionOnly, institutionTemplatesController.cloneTemplate);
 router.post('/me/templates/:templateId/archive', institutionOnly, institutionTemplatesController.archiveTemplate);
 router.post('/me/templates/:templateId/unarchive', institutionOnly, institutionTemplatesController.unarchiveTemplate);
+router.get('/correction-requests', institutionOnly, institutionCorrectionsController.listCorrectionRequests);
+router.get('/correction-requests/:requestId', institutionOnly, institutionCorrectionsController.getCorrectionRequest);
+router.post('/correction-requests/:requestId/approve', institutionOnly, institutionCorrectionsController.approveCorrectionRequest);
+router.post('/correction-requests/:requestId/reject', institutionOnly, institutionCorrectionsController.rejectCorrectionRequest);
 router.get('/verifications', institutionOnly, institutionReportsController.listVerifications);
 router.get('/reports/summary', institutionOnly, institutionReportsController.getSummary);
 router.get('/reports/certificates.csv', institutionOnly, institutionReportsController.exportCertificatesCsv);

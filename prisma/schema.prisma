@@ -59,37 +59,43 @@ enum CorrectionStatus {
 enum NotificationType {
   CERT_ISSUED
   CERT_REVOKED
+  // A certificate was verified (any result linked to a certificate).
   VERIFICATION_REQUEST
+  // A student asked for a correction (sent to the institution).
   CORRECTION_REQUEST
+  // The institution approved or rejected a correction request (sent to the student).
+  CORRECTION_RESOLVED
 }
 
 model User {
-  id            String            @id @default(uuid())
-  email         String            @unique
-  passwordHash  String
-  role          UserRole
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  institution   Institution?
-  student       Student?
-  employer      Employer?
-  staffProfile  InstitutionStaff?
-  notifications Notification[]
-  auditLogs     AuditLog[]
+  id                   String            @id @default(uuid())
+  email                String            @unique
+  passwordHash         String
+  role                 UserRole
+  isActive             Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  // Whether this user is notified when one of their certificates is verified (used for students).
+  notifyOnVerification Boolean           @default(true)
+  institution          Institution?
+  student              Student?
+  employer             Employer?
+  staffProfile         InstitutionStaff?
+  notifications        Notification[]
+  auditLogs            AuditLog[]
 }
 
 model Institution {
-  id                 String   @id @default(uuid())
-  user               User     @relation(fields: [userId], references: [id])
-  userId             String   @unique
+  id                 String            @id @default(uuid())
+  user               User              @relation(fields: [userId], references: [id])
+  userId             String            @unique
   name               String
-  registrationNumber String   @unique
+  registrationNumber String            @unique
   address            String?
   contactEmail       String?
-  walletAddress      String?  @unique
-  isVerified         Boolean  @default(false)
-  createdAt          DateTime @default(now())
+  walletAddress      String?           @unique
+  isVerified         Boolean           @default(false)
+  createdAt          DateTime          @default(now())
   // #RRGGBB accent colour for certificates.
   brandColor         String?
   logoAssetId        String?
@@ -100,7 +106,7 @@ model Institution {
   staff        InstitutionStaff[]
   students     Student[]
   certificates Certificate[]
-  assets       InstitutionAsset[] @relation("InstitutionAssets")
+  assets       InstitutionAsset[]    @relation("InstitutionAssets")
   signatories  Signatory[]
   templates    CertificateTemplate[]
 }
@@ -211,41 +217,43 @@ model Employer {
 }
 
 model Certificate {
-  id              String            @id @default(uuid())
-  certificateUid  String            @unique
-  student         Student           @relation(fields: [studentId], references: [id])
-  studentId       String
-  institution     Institution       @relation(fields: [institutionId], references: [id])
-  institutionId   String
-  certificateType String
-  programName     String
-  classification  String?
-  issueDate       DateTime
-  graduationDate  DateTime?
-  documentUrl     String?
-  certificateHash String
-  qrCodeUrl       String?
-  status          CertificateStatus @default(ACTIVE)
-  revokedReason   String?
-  revokedAt       DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                     String               @id @default(uuid())
+  certificateUid         String               @unique
+  student                Student              @relation(fields: [studentId], references: [id])
+  studentId              String
+  institution            Institution          @relation(fields: [institutionId], references: [id])
+  institutionId          String
+  certificateType        String
+  programName            String
+  classification         String?
+  issueDate              DateTime
+  graduationDate         DateTime?
+  documentUrl            String?
+  certificateHash        String
+  qrCodeUrl              String?
+  status                 CertificateStatus    @default(ACTIVE)
+  revokedReason          String?
+  revokedAt              DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
   // Frozen at issuance (design + branding + signatories) and never written again. Null for older certificates.
-  renderSnapshot  Json?
-  templateId      String?
+  renderSnapshot         Json?
+  templateId             String?
   // Which hash function covers this certificate (src/utils/certificateHash.ts). 1: the original seven inputs.
   // 2: every fact the certificate prints, including the frozen copies below. Never changed after issuance.
-  hashVersion            Int     @default(1)
+  hashVersion            Int                  @default(1)
   // The facts the certificate prints, copied at issuance (hash version 2) and never written again, so later edits
   // to the student or institution never change an issued certificate. Null for version 1 certificates.
   studentNameAtIssue     String?
   studentNumberAtIssue   String?
   institutionNameAtIssue String?
-  template        CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  template               CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
 
   blockchainTransactions BlockchainTransaction[]
   verifications          CertificateVerification[]
-  correctionRequests     CredentialCorrectionRequest[]
+  correctionRequests     CredentialCorrectionRequest[] @relation("CorrectionRequestCertificate")
+  // The correction request this certificate was issued to fix, if any.
+  replacementFor         CredentialCorrectionRequest?  @relation("CorrectionReplacement")
   notifications          Notification[]
 }
 
@@ -276,30 +284,49 @@ model CertificateVerification {
   ipAddress             String?
 }
 
+// A student's request to correct an issued certificate. Certificates never change: an approved request is fixed
+// by issuing a replacement certificate (linked here) and then revoking the original.
 model CredentialCorrectionRequest {
-  id             String            @id @default(uuid())
-  certificate    Certificate       @relation(fields: [certificateId], references: [id])
-  certificateId  String
-  student        Student           @relation(fields: [studentId], references: [id])
-  studentId      String
-  requestDetails String
-  status         CorrectionStatus  @default(PENDING)
-  resolvedBy     InstitutionStaff? @relation("resolvedBy", fields: [resolvedById], references: [id])
-  resolvedById   String?
-  requestedAt    DateTime          @default(now())
-  resolvedAt     DateTime?
+  id                       String            @id @default(uuid())
+  certificate              Certificate       @relation("CorrectionRequestCertificate", fields: [certificateId], references: [id])
+  certificateId            String
+  student                  Student           @relation(fields: [studentId], references: [id])
+  studentId                String
+  requestDetails           String
+  status                   CorrectionStatus  @default(PENDING)
+  // Unused for now (no institution staff accounts yet); who decided is recorded in the audit log.
+  resolvedBy               InstitutionStaff? @relation("resolvedBy", fields: [resolvedById], references: [id])
+  resolvedById             String?
+  requestedAt              DateTime          @default(now())
+  resolvedAt               DateTime?
+  // The institution's note when deciding (required to reject).
+  resolutionNote           String?
+  // The certificate issued to fix an approved request. At most one per request, and one request per certificate.
+  replacementCertificateId String?           @unique
+  replacementCertificate   Certificate?      @relation("CorrectionReplacement", fields: [replacementCertificateId], references: [id])
+  notifications            Notification[]
+
+  @@index([certificateId, status])
 }
 
+// In-app notifications only (no email or push).
 model Notification {
-  id                   String           @id @default(uuid())
-  user                 User             @relation(fields: [userId], references: [id])
-  userId               String
-  type                 NotificationType
-  message              String
-  relatedCertificate   Certificate?     @relation(fields: [relatedCertificateId], references: [id])
-  relatedCertificateId String?
-  isRead               Boolean          @default(false)
-  createdAt            DateTime         @default(now())
+  id                         String                       @id @default(uuid())
+  user                       User                         @relation(fields: [userId], references: [id])
+  userId                     String
+  type                       NotificationType
+  message                    String
+  relatedCertificate         Certificate?                 @relation(fields: [relatedCertificateId], references: [id])
+  relatedCertificateId       String?
+  relatedCorrectionRequest   CredentialCorrectionRequest? @relation(fields: [relatedCorrectionRequestId], references: [id])
+  relatedCorrectionRequestId String?
+  // When set, the same user gets at most one notification with this key per 24 hours.
+  dedupeKey                  String?
+  isRead                     Boolean                      @default(false)
+  createdAt                  DateTime                     @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, dedupeKey, createdAt])
 }
 
 model AuditLog {

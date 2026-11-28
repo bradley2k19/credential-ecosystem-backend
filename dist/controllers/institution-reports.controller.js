@@ -10,6 +10,7 @@ const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../config/db"));
 const onChain_1 = require("../utils/onChain");
 const csv_1 = require("../utils/csv");
+const certificateFacts_1 = require("../utils/certificateFacts");
 const EXPORT_ROW_LIMIT = 10000;
 // NOT_FOUND attempts are not linked to a certificate, so they can never belong to an institution.
 const attributableResults = [
@@ -196,7 +197,8 @@ async function exportCertificatesCsv(req, res) {
                 status: true,
                 revokedReason: true,
                 revokedAt: true,
-                student: { select: { fullName: true, studentNumber: true } },
+                // The student as printed on each certificate: frozen at issuance for version 2, the live record for version 1.
+                ...certificateFacts_1.certificateFactFields,
                 blockchainTransactions: onChain_1.onChainTransactionsSelect
             }
         });
@@ -205,10 +207,11 @@ async function exportCertificatesCsv(req, res) {
             'Issue date', 'Graduation date', 'Status', 'Revoked reason', 'Revoked at', 'On-chain issuance', 'On-chain revocation'
         ], rows.map((certificate) => {
             const onChain = (0, onChain_1.summariseOnChain)(certificate.blockchainTransactions);
+            const facts = (0, certificateFacts_1.certificateFacts)(certificate);
             return [
                 certificate.certificateUid,
-                certificate.student.fullName,
-                certificate.student.studentNumber,
+                facts.studentName,
+                facts.studentNumber,
                 certificate.certificateType,
                 certificate.programName,
                 certificate.classification,

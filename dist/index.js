@@ -15,6 +15,7 @@ const employers_routes_1 = __importDefault(require("./routes/employers.routes"))
 const students_routes_1 = __importDefault(require("./routes/students.routes"));
 const assets_routes_1 = __importDefault(require("./routes/assets.routes"));
 const templates_routes_1 = __importDefault(require("./routes/templates.routes"));
+const notifications_routes_1 = __importDefault(require("./routes/notifications.routes"));
 const app = (0, express_1.default)();
 // Exactly one proxy hop is trusted: Vercel's edge, which sets X-Forwarded-For to the client's address. req.ip
 // (see utils/clientIp.ts) is then the real client IP for rate limiting and verification logs; nothing further
@@ -51,6 +52,7 @@ app.use('/api/employers', employers_routes_1.default);
 app.use('/api/students', students_routes_1.default);
 app.use('/api/assets', assets_routes_1.default);
 app.use('/api/templates', templates_routes_1.default);
+app.use('/api/notifications', notifications_routes_1.default);
 // Centralized error handling
 app.use(error_middleware_1.default);
 exports.default = app;

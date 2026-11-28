@@ -4,6 +4,7 @@ import prisma from '../config/db';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { onChainTransactionsSelect, summariseOnChain } from '../utils/onChain';
 import { csvDate, toCsv } from '../utils/csv';
+import { certificateFactFields, certificateFacts } from '../utils/certificateFacts';
 
 const EXPORT_ROW_LIMIT = 10000;
 
@@ -197,7 +198,8 @@ export async function exportCertificatesCsv(req: AuthRequest, res: Response) {
         status: true,
         revokedReason: true,
         revokedAt: true,
-        student: { select: { fullName: true, studentNumber: true } },
+        // The student as printed on each certificate: frozen at issuance for version 2, the live record for version 1.
+        ...certificateFactFields,
         blockchainTransactions: onChainTransactionsSelect
       }
     });
@@ -209,10 +211,11 @@ export async function exportCertificatesCsv(req: AuthRequest, res: Response) {
       ],
       rows.map((certificate) => {
         const onChain = summariseOnChain(certificate.blockchainTransactions);
+        const facts = certificateFacts(certificate);
         return [
           certificate.certificateUid,
-          certificate.student.fullName,
-          certificate.student.studentNumber,
+          facts.studentName,
+          facts.studentNumber,
           certificate.certificateType,
           certificate.programName,
           certificate.classification,

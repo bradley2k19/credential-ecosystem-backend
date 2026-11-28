@@ -11,6 +11,7 @@ const institution_wallet_controller_1 = __importDefault(require("../controllers/
 const institution_reports_controller_1 = __importDefault(require("../controllers/institution-reports.controller"));
 const institution_profile_controller_1 = __importDefault(require("../controllers/institution-profile.controller"));
 const institution_templates_controller_1 = __importDefault(require("../controllers/institution-templates.controller"));
+const institution_corrections_controller_1 = __importDefault(require("../controllers/institution-corrections.controller"));
 const router = (0, express_1.Router)();
 const institutionOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('INSTITUTION')];
 router.post('/students', institutionOnly, institution_students_controller_1.default.createStudent);
@@ -48,6 +49,10 @@ router.put('/me/templates/:templateId', institutionOnly, institution_templates_c
 router.post('/me/templates/:templateId/clone', institutionOnly, institution_templates_controller_1.default.cloneTemplate);
 router.post('/me/templates/:templateId/archive', institutionOnly, institution_templates_controller_1.default.archiveTemplate);
 router.post('/me/templates/:templateId/unarchive', institutionOnly, institution_templates_controller_1.default.unarchiveTemplate);
+router.get('/correction-requests', institutionOnly, institution_corrections_controller_1.default.listCorrectionRequests);
+router.get('/correction-requests/:requestId', institutionOnly, institution_corrections_controller_1.default.getCorrectionRequest);
+router.post('/correction-requests/:requestId/approve', institutionOnly, institution_corrections_controller_1.default.approveCorrectionRequest);
+router.post('/correction-requests/:requestId/reject', institutionOnly, institution_corrections_controller_1.default.rejectCorrectionRequest);
 router.get('/verifications', institutionOnly, institution_reports_controller_1.default.listVerifications);
 router.get('/reports/summary', institutionOnly, institution_reports_controller_1.default.getSummary);
 router.get('/reports/certificates.csv', institutionOnly, institution_reports_controller_1.default.exportCertificatesCsv);

@@ -20,7 +20,7 @@ Object.assign(process.env, {
 });
 
 type Row = Record<string, any>;
-type DateFilter = { gt?: Date; gte?: Date; lt?: Date };
+type DateFilter = { gt?: Date; gte?: Date; lt?: Date; lte?: Date };
 
 export interface FakeCertificate {
   id: string;
@@ -44,6 +44,7 @@ export interface FakeCertificate {
   studentNameAtIssue?: string | null;
   studentNumberAtIssue?: string | null;
   institutionNameAtIssue?: string | null;
+  [key: string]: unknown;
 }
 
 export interface ChainRecord {
@@ -52,6 +53,9 @@ export interface ChainRecord {
   issuedAt: bigint;
 }
 
+export const EMPLOYER_ID = 'eeeeeeee-0000-4000-8000-00000000000e';
+export const EMPLOYER_NAME = 'Acme Hiring';
+
 /** Everything the stand-ins hold or saw. Reset between tests with resetState(). */
 export const state = {
   certificates: [] as FakeCertificate[],
@@ -59,13 +63,18 @@ export const state = {
   verifications: [] as Row[],
   auditLogs: [] as Row[],
   rateLimitEvents: [] as { id: string; scope: string; keyHash: string; createdAt: Date }[],
+  notifications: [] as Row[],
+  correctionRequests: [] as Row[],
   // Live student and institution records, joined into certificates the way the database joins them.
   students: [] as Row[],
   institutions: [] as Row[],
   chain: new Map<string, ChainRecord>(),
+  // Calls that wrote to a certificate (only revocation may).
   certificateWrites: 0,
   // When true, every rate-limit table operation fails (to test that the limiter fails open).
   rateLimitTableDown: false,
+  // When true, every notification table operation fails (to test that a failed notification breaks nothing).
+  notificationsDown: false,
   nextId: 1
 };
 
@@ -75,47 +84,42 @@ export function resetState() {
   state.verifications = [];
   state.auditLogs = [];
   state.rateLimitEvents = [];
+  state.notifications = [];
+  state.correctionRequests = [];
   state.students = [];
   state.institutions = [];
   state.chain = new Map();
   state.certificateWrites = 0;
   state.rateLimitTableDown = false;
+  state.notificationsDown = false;
 }
 
 const newId = () => `00000000-0000-4000-8000-${String(state.nextId++).padStart(12, '0')}`;
 const matchesDate = (value: Date, filter: DateFilter) =>
   (filter.gt === undefined || value > filter.gt)
   && (filter.gte === undefined || value >= filter.gte)
-  && (filter.lt === undefined || value < filter.lt);
-const rateLimitTable = () => {
-  if (state.rateLimitTableDown) throw new Error('stand-in: rate limit table unavailable');
-  return state.rateLimitEvents;
-};
-const refuseWrite = () => {
-  state.certificateWrites += 1;
-  throw new Error('stand-in: certificates must never be written here');
-};
+  && (filter.lt === undefined || value < filter.lt)
+  && (filter.lte === undefined || value <= filter.lte);
+const isPlainObject = (value: unknown): value is Row => value !== null && typeof value === 'object' && !(value instanceof Date) && !Array.isArray(value);
 
-/**
- * A certificate as the database returns it: column defaults filled in (hash version 1, no frozen facts), and the
- * student and institution joined LIVE from their own records, so editing those records shows up here exactly as
- * it would in Postgres. Certificates that carry their own `student` / `institution` objects keep them.
- */
-function withRelations(row: Row) {
-  const student = state.students.find((item) => item.id === row.studentId);
-  const institution = state.institutions.find((item) => item.id === row.institutionId);
-  return {
-    hashVersion: 1,
-    studentNameAtIssue: null,
-    studentNumberAtIssue: null,
-    institutionNameAtIssue: null,
-    blockchainTransactions: [],
-    ...row,
-    student: student ? { fullName: student.fullName, studentNumber: student.studentNumber } : row.student,
-    institution: institution ? { name: institution.name } : row.institution
-  };
+/** A small subset of Prisma's where: equality, null, { in }, { not }, date ranges, OR, and relation filters. */
+function matches(row: Row | null | undefined, where: Row | undefined): boolean {
+  if (!where) return true;
+  if (!row) return false;
+  return Object.entries(where).every(([key, condition]) => {
+    if (condition === undefined) return true;
+    if (key === 'OR') return (condition as Row[]).some((option) => matches(row, option));
+    const value = row[key];
+    if (condition === null) return value === null || value === undefined;
+    if (isPlainObject(condition)) {
+      if ('in' in condition) return (condition.in as unknown[]).includes(value);
+      if ('not' in condition) return value !== condition.not;
+      if (['gt', 'gte', 'lt', 'lte'].some((operator) => operator in condition)) return value instanceof Date && matchesDate(value, condition);
+      return matches(value, condition);
+    }
+    return value === condition;
+  });
 }
-const matchesWhere = (row: Row, where: Row) => Object.entries(where).every(([key, value]) => row[key] === value);
 
 /** Returns only the selected fields, as Prisma does (nested `{ select }` for relations); everything without one. */
 function project(row: Row | null | undefined, select?: Row): any {
@@ -133,6 +137,87 @@ function project(row: Row | null | undefined, select?: Row): any {
   return picked;
 }
 
+/** findMany over rows: where, orderBy (one key), skip, take and select. */
+function query(rows: Row[], args: Row = {}) {
+  let found = rows.filter((row) => matches(row, args.where));
+  const [orderKey, direction] = Object.entries(args.orderBy ?? {})[0] ?? [];
+  if (orderKey) {
+    found = [...found].sort((a, b) => {
+      const difference = new Date(a[orderKey]).getTime() - new Date(b[orderKey]).getTime();
+      return direction === 'desc' ? -difference : difference;
+    });
+  }
+  found = found.slice(args.skip ?? 0, args.take === undefined ? undefined : (args.skip ?? 0) + args.take);
+  return found.map((row) => project(row, args.select));
+}
+
+/**
+ * A certificate as the database returns it: column defaults filled in (hash version 1, no frozen facts), and the
+ * student and institution joined LIVE from their own records, so editing those records shows up here exactly as
+ * it would in Postgres. Certificates that carry their own `student` / `institution` objects keep them.
+ */
+function withRelations(row: Row): Row {
+  const student = state.students.find((item) => item.id === row.studentId);
+  const institution = state.institutions.find((item) => item.id === row.institutionId);
+  const studentUser = student && state.users.find((user) => user.id === student.userId);
+  return {
+    hashVersion: 1,
+    studentNameAtIssue: null,
+    studentNumberAtIssue: null,
+    institutionNameAtIssue: null,
+    blockchainTransactions: [],
+    ...row,
+    student: student
+      ? { ...student, user: { notifyOnVerification: studentUser ? studentUser.notifyOnVerification !== false : true } }
+      : row.student,
+    institution: institution ? { ...institution } : row.institution
+  };
+}
+
+/** A student with their user and institution joined. */
+function withStudentRelations(row: Row | undefined): Row | undefined {
+  if (!row) return row;
+  const user = state.users.find((item) => item.id === row.userId);
+  return {
+    ...row,
+    user: user ? { notifyOnVerification: true, ...user } : null,
+    institution: state.institutions.find((item) => item.id === row.institutionId) ?? null
+  };
+}
+
+/** A correction request with its certificates and student joined. */
+function withRequestRelations(row: Row): Row {
+  const certificate = state.certificates.find((item) => item.id === row.certificateId);
+  const replacement = row.replacementCertificateId ? state.certificates.find((item) => item.id === row.replacementCertificateId) : null;
+  return {
+    resolutionNote: null,
+    resolvedAt: null,
+    replacementCertificateId: null,
+    ...row,
+    certificate: certificate ? withRelations(certificate) : null,
+    replacementCertificate: replacement ? withRelations(replacement) : null,
+    student: state.students.find((item) => item.id === row.studentId) ?? null
+  };
+}
+
+const rateLimitTable = () => {
+  if (state.rateLimitTableDown) throw new Error('stand-in: rate limit table unavailable');
+  return state.rateLimitEvents;
+};
+const notificationTable = () => {
+  if (state.notificationsDown) throw new Error('stand-in: notification table unavailable');
+  return state.notifications;
+};
+const refuseWrite = () => {
+  state.certificateWrites += 1;
+  throw new Error('stand-in: certificates must never be written here');
+};
+const updateRows = (rows: Row[], where: Row, data: Row) => {
+  const found = rows.filter((row) => matches(row, where));
+  for (const row of found) Object.assign(row, data);
+  return { count: found.length };
+};
+
 export const fakePrisma: Row = {
   certificate: {
     async findUnique({ where, select }: Row) {
@@ -140,15 +225,27 @@ export const fakePrisma: Row = {
       return row ? project(withRelations(row), select) : null;
     },
     async findFirst({ where, select }: Row) {
-      const row = state.certificates.find((item) => matchesWhere(item, where));
-      return row ? project(withRelations(row), select) : null;
+      const row = state.certificates.map(withRelations).find((item) => matches(item, where));
+      return row ? project(row, select) : null;
+    },
+    async findMany(args: Row) {
+      return query(state.certificates.map(withRelations), args);
+    },
+    async count({ where }: Row = {}) {
+      return state.certificates.map(withRelations).filter((row) => matches(row, where)).length;
     },
     async create({ data, select }: Row) {
       const row = { id: newId(), createdAt: new Date(), updatedAt: new Date(), ...data };
-      state.certificates.push(row);
+      state.certificates.push(row as FakeCertificate);
       return project(withRelations(row), select);
     },
-    update: refuseWrite,
+    // Only revocation writes to a certificate; every write is counted.
+    async update({ where, data, select }: Row) {
+      state.certificateWrites += 1;
+      const row = state.certificates.find((item) => item.id === where.id)!;
+      Object.assign(row, data);
+      return project(withRelations(row), select);
+    },
     updateMany: refuseWrite,
     upsert: refuseWrite,
     delete: refuseWrite
@@ -162,15 +259,15 @@ export const fakePrisma: Row = {
   },
   employer: {
     async findFirst() {
-      return { id: 'eeeeeeee-0000-4000-8000-00000000000e' };
+      return { id: EMPLOYER_ID };
+    },
+    async findUnique({ where }: Row) {
+      return where.id === EMPLOYER_ID ? { companyName: EMPLOYER_NAME } : null;
     }
   },
   auditLog: {
     async findFirst({ where }: Row) {
-      return state.auditLogs.find((row) => row.action === where.action
-        && row.entityType === where.entityType
-        && row.entityId === where.entityId
-        && (!where.createdAt || matchesDate(row.createdAt, where.createdAt))) ?? null;
+      return state.auditLogs.find((row) => matches(row, where)) ?? null;
     },
     async create({ data }: Row) {
       const row = { id: newId(), createdAt: new Date(), ipAddress: null, ...data };
@@ -182,28 +279,28 @@ export const fakePrisma: Row = {
     async findUnique({ where }: Row) {
       return state.users.find((user) => (where.email !== undefined ? user.email === where.email : user.id === where.id)) ?? null;
     },
-    async update({ where, data }: Row) {
+    async update({ where, data, select }: Row) {
       const user = state.users.find((item) => item.id === where.id);
       Object.assign(user!, data);
-      return user;
+      return project(user, select);
     }
   },
   institution: {
     async findUnique({ where, select }: Row) {
-      return project(state.institutions.find((item) => matchesWhere(item, where)), select);
+      return project(state.institutions.find((item) => matches(item, where)), select);
     }
   },
   student: {
     async findFirst({ where, select }: Row) {
-      return project(state.students.find((item) => matchesWhere(item, where)), select);
+      return project(withStudentRelations(state.students.find((item) => matches(item, where))), select);
     },
     async findUnique({ where, select }: Row) {
-      return project(state.students.find((item) => matchesWhere(item, where)), select);
+      return project(withStudentRelations(state.students.find((item) => matches(item, where))), select);
     },
-    async update({ where, data }: Row) {
+    async update({ where, data, select }: Row) {
       const student = state.students.find((item) => item.id === where.id);
       Object.assign(student!, data);
-      return student;
+      return project(student, select);
     }
   },
   // Issuance with no saved template: the built-in design, and no active signatories.
@@ -217,7 +314,57 @@ export const fakePrisma: Row = {
       return [];
     }
   },
-  async $transaction(work: (tx: Row) => Promise<unknown>) {
+  notification: {
+    async findFirst({ where, select }: Row) {
+      return project(notificationTable().find((row) => matches(row, where)), select);
+    },
+    async findMany(args: Row) {
+      return query(notificationTable(), args);
+    },
+    async count({ where }: Row = {}) {
+      return notificationTable().filter((row) => matches(row, where)).length;
+    },
+    async create({ data }: Row) {
+      const row = { id: newId(), createdAt: new Date(), isRead: false, ...data };
+      notificationTable().push(row);
+      return row;
+    },
+    async updateMany({ where, data }: Row) {
+      return updateRows(notificationTable(), where, data);
+    },
+    async deleteMany({ where }: Row) {
+      const before = notificationTable().length;
+      state.notifications = notificationTable().filter((row) => !matches(row, where));
+      return { count: before - state.notifications.length };
+    }
+  },
+  credentialCorrectionRequest: {
+    async findUnique({ where, select }: Row) {
+      const row = state.correctionRequests.find((item) => item.id === where.id);
+      return row ? project(withRequestRelations(row), select) : null;
+    },
+    async findFirst({ where, select }: Row) {
+      const row = state.correctionRequests.map(withRequestRelations).find((item) => matches(item, where));
+      return row ? project(row, select) : null;
+    },
+    async findMany(args: Row) {
+      return query(state.correctionRequests.map(withRequestRelations), args);
+    },
+    async count({ where }: Row = {}) {
+      return state.correctionRequests.map(withRequestRelations).filter((row) => matches(row, where)).length;
+    },
+    async create({ data, select }: Row) {
+      // Column defaults, as the database fills them in.
+      const row = { id: newId(), status: 'PENDING', requestedAt: new Date(), resolvedAt: null, resolutionNote: null, replacementCertificateId: null, resolvedById: null, ...data };
+      state.correctionRequests.push(row);
+      return project(withRequestRelations(row), select);
+    },
+    async updateMany({ where, data }: Row) {
+      return updateRows(state.correctionRequests, where, data);
+    }
+  },
+  async $transaction(work: ((tx: Row) => Promise<unknown>) | Promise<unknown>[]) {
+    if (Array.isArray(work)) return Promise.all(work);
     const create = (table: Row[]) => async ({ data }: Row) => {
       const row = { id: newId(), ...data };
       table.push(row);

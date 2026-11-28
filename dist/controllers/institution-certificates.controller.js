@@ -15,6 +15,7 @@ const db_1 = __importDefault(require("../config/db"));
 const certificateHash_1 = require("../utils/certificateHash");
 const certificateFacts_1 = require("../utils/certificateFacts");
 const blockchain_1 = require("../config/blockchain");
+const notifications_1 = require("../utils/notifications");
 const onChain_1 = require("../utils/onChain");
 const snapshot_1 = require("../templates/snapshot");
 const certificateFields = {
@@ -36,16 +37,24 @@ const certificateFields = {
     createdAt: true,
     updatedAt: true,
     templateId: true,
-    student: {
-        select: {
-            fullName: true,
-            studentNumber: true
-        }
-    }
+    // hashVersion, the frozen facts, and the live student (see withPrintedStudent).
+    ...certificateFacts_1.certificateFactFields
 };
 // The single-certificate response feeds the renderer and never carries the hash. The issue and list responses
 // still include it, because the institution's on-chain issue step signs it.
 const { certificateHash: _certificateHash, ...singleCertificateFields } = certificateFields;
+/**
+ * A certificate as the institution's pages show it: `student` is the name and number printed on it (frozen at
+ * issuance for version 2, the live record for version 1), and the internal frozen-fact fields are left out.
+ */
+function withPrintedStudent(row) {
+    const { hashVersion: _version, studentNameAtIssue: _name, studentNumberAtIssue: _number, institutionNameAtIssue: _institutionName, institution: _institution, ...rest } = row;
+    const facts = (0, certificateFacts_1.certificateFacts)(row);
+    return { ...rest, student: { fullName: facts.studentName, studentNumber: facts.studentNumber } };
+}
+/** Thrown inside the issuing transaction when another replacement was linked first; rolls the issuance back. */
+class ReplacementAlreadyIssued extends Error {
+}
 async function getInstitutionId(userId) {
     const institution = await db_1.default.institution.findUnique({
         where: { userId },
@@ -69,9 +78,12 @@ function isUniqueConstraintError(error) {
     return error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 async function issueCertificate(req, res) {
-    const { studentId, certificateType, programName, classification, issueDate, graduationDate, templateId } = req.body;
+    const { studentId, certificateType, programName, classification, issueDate, graduationDate, templateId, correctionRequestId } = req.body;
     if (!studentId || !certificateType || !programName || !issueDate) {
         return res.status(400).json({ error: 'Missing required fields' });
+    }
+    if (correctionRequestId !== undefined && correctionRequestId !== null && (typeof correctionRequestId !== 'string' || !correctionRequestId)) {
+        return res.status(400).json({ error: 'correctionRequestId must be a correction request id' });
     }
     const parsedIssueDate = parseDate(issueDate);
     const parsedGraduationDate = graduationDate === undefined ? undefined : parseDate(graduationDate);
@@ -85,13 +97,32 @@ async function issueCertificate(req, res) {
         const result = await db_1.default.$transaction(async (tx) => {
             const student = await tx.student.findFirst({
                 where: { id: studentId, institutionId },
-                select: { id: true, fullName: true, studentNumber: true }
+                select: { id: true, fullName: true, studentNumber: true, userId: true }
             });
             if (!student)
                 return { status: 404, body: { error: 'Student not found' } };
             const institution = await tx.institution.findUnique({ where: { id: institutionId }, select: { name: true } });
             if (!institution)
                 return { status: 403, body: { error: 'Institution profile not found' } };
+            // Reissuing for a correction request: it must be this institution's, approved, without a replacement yet,
+            // and the replacement goes to the same student as the original.
+            let correction = null;
+            if (correctionRequestId) {
+                const request = await tx.credentialCorrectionRequest.findUnique({
+                    where: { id: correctionRequestId },
+                    select: { id: true, status: true, replacementCertificateId: true, certificate: { select: { institutionId: true, studentId: true, certificateUid: true } } }
+                });
+                if (!request || request.certificate.institutionId !== institutionId)
+                    return { status: 404, body: { error: 'Correction request not found' } };
+                if (request.status !== client_1.CorrectionStatus.APPROVED)
+                    return { status: 409, body: { error: 'Only an approved correction request can be reissued' } };
+                if (request.replacementCertificateId)
+                    return { status: 409, body: { error: 'A replacement certificate has already been issued for this correction request' } };
+                if (request.certificate.studentId !== studentId) {
+                    return { status: 400, body: { error: 'A replacement must be issued to the same student as the original certificate' } };
+                }
+                correction = { id: request.id, originalUid: request.certificate.certificateUid };
+            }
             // Presentation only: the template and snapshot never feed into the certificate hash below.
             const render = await (0, snapshot_1.buildRenderSnapshot)(tx, institutionId, templateId);
             if (!render.ok)
@@ -127,11 +158,33 @@ async function issueCertificate(req, res) {
                 },
                 select: certificateFields
             });
-            return { status: 201, body: { ...certificate, templateName: render.snapshot.template.name } };
+            // In the same transaction: the request now points at its replacement (only if nothing else got there first).
+            if (correction) {
+                const linked = await tx.credentialCorrectionRequest.updateMany({
+                    where: { id: correction.id, status: client_1.CorrectionStatus.APPROVED, replacementCertificateId: null },
+                    data: { replacementCertificateId: certificate.id }
+                });
+                if (linked.count !== 1)
+                    throw new ReplacementAlreadyIssued();
+            }
+            const message = correction
+                ? notifications_1.notificationMessages.replacementIssued(institution.name, certificateType, programName, correction.originalUid)
+                : notifications_1.notificationMessages.certificateIssued(institution.name, certificateType, programName);
+            return {
+                status: 201,
+                body: { ...withPrintedStudent(certificate), templateName: render.snapshot.template.name },
+                notice: { userId: student.userId, message, certificateId: certificate.id }
+            };
         });
+        // After the certificate is committed; a notification failure never affects the issuance.
+        if (result.notice)
+            await (0, notifications_1.notify)(result.notice.userId, client_1.NotificationType.CERT_ISSUED, result.notice.message, { certificateId: result.notice.certificateId });
         return res.status(result.status).json(result.body);
     }
     catch (error) {
+        if (error instanceof ReplacementAlreadyIssued) {
+            return res.status(409).json({ error: 'A replacement certificate has already been issued for this correction request' });
+        }
         if (isUniqueConstraintError(error))
             return res.status(409).json({ error: 'Certificate identifier already exists' });
         console.error('Database error while issuing certificate:', error instanceof Error ? error.message : error);
@@ -168,9 +221,9 @@ async function listCertificates(req, res) {
             }),
             db_1.default.certificate.count({ where })
         ]);
-        // The list carries only the frozen template name, never the full snapshot.
+        // The list carries only the frozen template name, never the full snapshot, and the student as printed.
         const certificates = rows.map(({ blockchainTransactions, renderSnapshot, ...certificate }) => ({
-            ...certificate,
+            ...withPrintedStudent(certificate),
             templateName: (0, snapshot_1.snapshotTemplateName)(renderSnapshot),
             onChain: (0, onChain_1.summariseOnChain)(blockchainTransactions)
         }));
@@ -188,17 +241,16 @@ async function getCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: { ...singleCertificateFields, ...certificateFacts_1.certificateFactFields, renderSnapshot: true }
+            select: { ...singleCertificateFields, renderSnapshot: true }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
-        const { renderSnapshot, institution: _institution, hashVersion: _hashVersion, studentNameAtIssue: _name, studentNumberAtIssue: _number, institutionNameAtIssue: _institutionName, ...row } = certificate;
+        const { renderSnapshot, ...row } = certificate;
         // The certificate's own facts: frozen at issuance for version 2, the live records for version 1 (as before).
         const facts = (0, certificateFacts_1.certificateFacts)(certificate);
         const rendered = (0, snapshot_1.renderSnapshotForResponse)(renderSnapshot, facts.institutionName);
         return res.json({
-            ...row,
-            student: { fullName: facts.studentName, studentNumber: facts.studentNumber },
+            ...withPrintedStudent(row),
             institutionName: facts.institutionName,
             // From the stored snapshot only, so older certificates report null rather than the fallback's name.
             templateName: (0, snapshot_1.snapshotTemplateName)(renderSnapshot),
@@ -222,7 +274,7 @@ async function revokeCertificate(req, res) {
     try {
         const certificate = await db_1.default.certificate.findFirst({
             where: { id: req.params.certificateId, institutionId },
-            select: { id: true, certificateUid: true, status: true }
+            select: { id: true, certificateUid: true, status: true, certificateType: true, student: { select: { userId: true } } }
         });
         if (!certificate)
             return res.status(404).json({ error: 'Certificate not found' });
@@ -234,7 +286,9 @@ async function revokeCertificate(req, res) {
             data: { status: client_1.CertificateStatus.REVOKED, revokedReason: revokedReason.trim(), revokedAt: new Date() },
             select: certificateFields
         });
-        return res.json(revoked);
+        // After the revocation is saved; a notification failure never affects it.
+        await (0, notifications_1.notify)(certificate.student.userId, client_1.NotificationType.CERT_REVOKED, notifications_1.notificationMessages.certificateRevoked(certificate.certificateType, revokedReason), { certificateId: certificate.id });
+        return res.json(withPrintedStudent(revoked));
     }
     catch (error) {
         console.error('Database error while revoking certificate:', error instanceof Error ? error.message : error);

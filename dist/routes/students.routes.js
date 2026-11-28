@@ -9,7 +9,10 @@ const students_controller_1 = __importDefault(require("../controllers/students.c
 const router = (0, express_1.Router)();
 const studentOnly = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)('STUDENT')];
 router.get('/me', studentOnly, students_controller_1.default.getProfile);
+router.patch('/me/preferences', studentOnly, students_controller_1.default.updatePreferences);
 router.get('/me/certificates', studentOnly, students_controller_1.default.listCertificates);
 router.get('/me/certificates/:certificateId', studentOnly, students_controller_1.default.getCertificate);
+router.post('/me/certificates/:certificateId/correction-requests', studentOnly, students_controller_1.default.requestCorrection);
+router.get('/me/correction-requests', studentOnly, students_controller_1.default.listCorrectionRequests);
 router.get('/me/verifications', studentOnly, students_controller_1.default.getVerificationHistory);
 exports.default = router;
